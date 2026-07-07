@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>★ JobDesk 2000 — Career Manager ★</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tahoma&family=VT323&family=Baloo+2:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --lav:#b6a8e8; --lav-d:#7d6bc4; --lav-dd:#5b4a9e;
+  --sky1:#8fd0f5; --sky2:#c6ecff;
+  --mint:#b8f0d2; --mint-d:#5bc98d;
+  --pink:#ffb8d9; --pink-d:#e86aa6;
+  --peach:#ffd9a8; --peach-d:#f0a85a;
+  --yellow:#fff3a8;
+  --win:#eef0fb; --win-border:#8a7bd0;
+  --title1:#7d6bc4; --title2:#b6a8e8;
+  --ink:#4a3f7a; --dim:#8a7fb5;
+  --red:#ff8a9b;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  font-family:'Tahoma','VT323',sans-serif; color:var(--ink); min-height:100vh; padding-bottom:52px;
+  background:linear-gradient(180deg,#7ec8f0 0%, #a8dcf5 35%, #c6ecff 60%, #d8f5e0 100%);
+  position:relative; overflow-x:hidden;
+}
+/* rainbow arc */
+.rainbow{position:fixed; top:-40vw; left:50%; transform:translateX(-50%); width:150vw; height:150vw; border-radius:50%;
+  background:conic-gradient(from 180deg, transparent 40%, #ff8a9b 44%, #ffd9a8 47%, #fff3a8 50%, #b8f0d2 53%, #8fd0f5 56%, #b6a8e8 59%, transparent 63%);
+  opacity:.28; pointer-events:none; z-index:0;}
+/* clouds */
+.cloud{position:fixed; background:#fff; border-radius:100px; opacity:.75; pointer-events:none; z-index:0;
+  box-shadow:40px 10px 0 -6px #fff, -40px 12px 0 -8px #fff;}
+.cloud.c1{width:120px; height:44px; top:8%; left:6%; animation:drift 26s linear infinite;}
+.cloud.c2{width:90px; height:34px; top:22%; right:10%; animation:drift 34s linear infinite reverse;}
+.cloud.c3{width:150px; height:52px; top:60%; left:3%; animation:drift 42s linear infinite;}
+@keyframes drift{0%{transform:translateX(-10px);}50%{transform:translateX(30px);}100%{transform:translateX(-10px);}}
+/* scanline overlay */
+body::after{content:""; position:fixed; inset:0; pointer-events:none; z-index:60;
+  background:repeating-linear-gradient(0deg, rgba(120,110,180,0.05) 0 2px, transparent 2px 4px);}
+/* moving scan sweep */
+.sweep{position:fixed; left:0; right:0; height:120px; z-index:59; pointer-events:none;
+  background:linear-gradient(180deg, transparent, rgba(255,255,255,0.18), transparent);
+  animation:sweep 7s linear infinite;}
+@keyframes sweep{0%{top:-120px;}100%{top:100%;}}
+
+.wrap{max-width:1080px; margin:0 auto; padding:26px 18px 40px; position:relative; z-index:2;}
+
+/* generic window chrome */
+.window{background:var(--win); border:2px solid var(--win-border); border-radius:10px; overflow:hidden;
+  box-shadow:4px 4px 0 rgba(91,74,158,0.35);}
+.titlebar{display:flex; align-items:center; gap:8px; padding:6px 8px;
+  background:linear-gradient(180deg,var(--title2),var(--title1)); color:#fff;}
+.titlebar .ico{width:16px; height:16px; background:var(--mint); border:1px solid #fff; border-radius:3px; flex:none;}
+.titlebar .t{font-size:13px; font-weight:bold; letter-spacing:.3px; text-shadow:1px 1px 0 rgba(0,0,0,.2); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.wbtns{display:flex; gap:4px;}
+.wbtn{width:18px; height:16px; border:1px solid #fff; border-radius:3px; background:var(--lav); color:#fff; font-size:11px; line-height:14px; text-align:center; font-family:Tahoma;}
+.wbtn.x{background:var(--red);}
+
+/* HERO window */
+.hero{margin-bottom:22px;}
+.hero .body{padding:20px 24px; display:flex; gap:24px; align-items:center; flex-wrap:wrap;
+  background:
+    radial-gradient(circle at 88% 15%, #fff7, transparent 42%),
+    linear-gradient(135deg,#ffd7e6, #f3d9f5 55%, #e6d5ff);
+  position:relative;}
+.hero .body::after{content:""; position:absolute; inset:14px; border:2px solid #ffffff88; border-radius:8px; pointer-events:none;
+  background-image:radial-gradient(#e86aa622 1px, transparent 1.4px); background-size:9px 9px; -webkit-mask:linear-gradient(#000,#000); mask:none; z-index:0;}
+.pixie{width:210px; height:290px; flex:none; image-rendering:auto; animation:bob 3.8s ease-in-out infinite; filter:drop-shadow(3px 6px 6px rgba(217,143,198,.35)); position:relative; z-index:2;}
+.pixie .spk{animation:twinkle 2.4s ease-in-out infinite; transform-origin:center;}
+@keyframes twinkle{0%,100%{opacity:1;}50%{opacity:.4;}}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(-1.5deg);}50%{transform:translateY(-10px) rotate(1.5deg);}}
+.hero .htext{position:relative; z-index:2;}
+.pixie .wingL,.pixie .wingR{transform-origin:center; animation:flutter 3.2s ease-in-out infinite;}
+.pixie .wingR{animation-delay:.15s;}
+@keyframes flutter{0%,100%{transform:scaleX(1);}50%{transform:scaleX(.9);}}
+.pixie .antenna{animation:sway 2.6s ease-in-out infinite; transform-origin:bottom;}
+@keyframes sway{0%,100%{transform:rotate(-3deg);}50%{transform:rotate(3deg);}}
+.hero h1{font-family:'Baloo 2',cursive; font-size:40px; font-weight:700; line-height:1; color:var(--lav-dd);
+  text-shadow:2px 2px 0 #fff, 4px 4px 0 var(--pink);}
+.hero .sub{font-size:13px; color:var(--lav-d); margin-top:8px; letter-spacing:.5px;}
+.sparkle{color:var(--pink-d);}
+
+/* fairy say bubble */
+.say-win{margin-bottom:22px;}
+.say-win .body{padding:12px 16px; display:flex; gap:12px; align-items:center; background:#fff;}
+.say-win .mini{width:40px; height:40px; flex:none;}
+.say-win .say{font-size:14px; line-height:1.5; color:var(--ink);}
+.say-win .say b{color:var(--pink-d);}
+/* cover letter messenger */
+.cl-body{padding:14px 16px; background:#fff;}
+.cl-row{display:flex; gap:12px; align-items:flex-start; margin-bottom:12px;}
+.cl-mini{width:40px; height:40px; flex:none;}
+.cl-controls{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:12px 0;}
+.cl-controls .full{grid-column:1/-1;}
+.cv-zone{border:2px dashed var(--lav-d); border-radius:8px; background:#f7f4ff; padding:12px 14px; margin-bottom:12px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
+.cv-zone.loaded{border-style:solid; border-color:var(--mint-d); background:#f0fbf5;}
+.cv-zone .cv-ico{font-size:22px; flex:none;}
+.cv-zone .cv-txt{flex:1; min-width:120px; font-size:12px; color:var(--dim); line-height:1.4;}
+.cv-zone .cv-txt b{color:var(--ink);}
+.cv-zone.loaded .cv-txt b{color:var(--mint-d);}
+.cv-btn{font-family:'Baloo 2',cursive; font-weight:700; font-size:12px; color:#fff; border:2px solid #fff; border-radius:8px; padding:8px 14px; cursor:pointer; background:var(--lav-d); box-shadow:2px 2px 0 rgba(91,74,158,.3);}
+.cv-btn:hover{background:var(--lav-dd);}
+.cv-clear{background:none; border:none; color:var(--pink-d); font-size:11px; cursor:pointer; text-decoration:underline; font-family:Tahoma;}
+.cl-controls label{font-size:11px; color:var(--dim); display:block; margin-bottom:4px; text-transform:uppercase; letter-spacing:.5px;}
+.cl-out{margin-top:14px; border:2px solid var(--lav); border-radius:8px; background:#faf8ff; padding:14px; min-height:60px; font-size:13px; line-height:1.6; color:var(--ink); white-space:pre-wrap;}
+.cl-out.empty-state{color:var(--dim); font-style:italic; text-align:center; white-space:normal;}
+.cl-actions{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;}
+.cl-status{font-size:12px; color:var(--pink-d); margin-top:8px; min-height:16px;}
+.typing i{display:inline-block; width:6px; height:6px; margin:0 1px; border-radius:50%; background:var(--pink-d); animation:blink 1.2s infinite;}
+.typing i:nth-child(2){animation-delay:.2s;} .typing i:nth-child(3){animation-delay:.4s;}
+@keyframes blink{0%,60%,100%{opacity:.3;}30%{opacity:1;}}
+
+/* stats window */
+.stats-win{margin-bottom:22px;}
+.stats-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; padding:16px; background:#f4f1ff;}
+.stat{background:#fff; border:2px solid var(--lav); border-radius:8px; padding:10px 12px; text-align:center;}
+.stat .l{font-size:11px; color:var(--dim); letter-spacing:.5px; text-transform:uppercase;}
+.stat .v{font-family:'Baloo 2',cursive; font-size:30px; font-weight:700; margin-top:2px;}
+.prog-wrap{grid-column:1/-1; background:#fff; border:2px solid var(--lav); border-radius:8px; padding:10px 12px;}
+.prog-wrap .l{font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px;}
+.prog{height:16px; border:2px solid var(--lav-d); border-radius:8px; overflow:hidden; display:flex; background:#eee;}
+.prog i{height:100%; display:block; transition:width .3s;}
+
+/* toolbar / filters */
+.toolbar{display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:12px; margin-bottom:22px;
+  background:#e6e0fa; border:2px solid var(--lav); border-radius:10px; box-shadow:3px 3px 0 rgba(91,74,158,.25);}
+select{font-family:Tahoma; font-size:12px; color:var(--ink); background:#fff; border:2px solid var(--lav-d); border-radius:6px; padding:7px 9px; min-width:135px; cursor:pointer;}
+select:focus{outline:none; border-color:var(--pink-d);}
+.btn{font-family:'Baloo 2',cursive; font-weight:700; font-size:12px; color:#fff; border:2px solid #fff; border-radius:8px; padding:8px 14px; cursor:pointer;
+  background:var(--pink-d); box-shadow:2px 2px 0 rgba(232,106,166,.4);}
+.btn:hover{transform:translate(1px,1px); box-shadow:1px 1px 0 rgba(232,106,166,.4);}
+.btn.mint{background:var(--mint-d); box-shadow:2px 2px 0 rgba(91,201,141,.4);}
+.push{margin-left:auto; display:flex; gap:8px;}
+
+/* group headers */
+.group-h{display:flex; align-items:center; gap:10px; margin:26px 0 12px;}
+.group-h .chip{font-family:'Baloo 2',cursive; font-weight:700; font-size:15px; color:#fff; padding:5px 16px; border-radius:20px; border:2px solid #fff; box-shadow:2px 2px 0 rgba(0,0,0,.12);}
+.group-h .cnt{font-size:12px; color:var(--lav-d);}
+.group-h .line{flex:1; height:3px; border-radius:3px; background:repeating-linear-gradient(90deg,var(--lav) 0 6px, transparent 6px 12px);}
+
+/* job window cards */
+.cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:18px;}
+.card{}
+.card .titlebar .t{font-size:12px;}
+.card .body{padding:14px; background:#fff; position:relative;}
+.card .body::before{content:""; position:absolute; top:0; left:0; right:0; height:5px;
+  background:repeating-linear-gradient(90deg, var(--pc,#b6a8e8) 0 10px, transparent 10px 20px); opacity:.5;}
+.c-title{font-family:'Baloo 2',cursive; font-weight:700; font-size:15px; color:var(--lav-dd); line-height:1.25; margin-top:4px;}
+.c-co{font-size:12px; color:var(--pink-d); margin-top:2px; font-weight:bold;}
+.c-meta{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;}
+.tag{font-size:11px; color:var(--ink); background:#f0ecff; border:1px solid var(--lav); border-radius:12px; padding:3px 9px;}
+.tag.sal{background:#e4fbee; border-color:var(--mint-d); color:#2f8a5a; font-weight:bold;}
+.field-row{display:flex; gap:8px; margin-top:10px; align-items:center;}
+.field-row label{font-size:11px; color:var(--dim); width:78px; flex:none;}
+.field-row input{flex:1; font-family:Tahoma; font-size:12px; color:var(--ink); background:#faf8ff; border:1.5px solid var(--lav); border-radius:6px; padding:6px 8px;}
+.field-row input:focus{outline:none; border-color:var(--pink-d); background:#fff;}
+.field-row textarea{flex:1; font-family:Tahoma; font-size:12px; color:var(--ink); background:#faf8ff; border:1.5px solid var(--lav); border-radius:6px; padding:6px 8px; resize:vertical; min-height:38px;}
+.field-row textarea:focus{outline:none; border-color:var(--pink-d); background:#fff;}
+.c-foot{display:flex; align-items:center; gap:8px; margin-top:12px;}
+.st-sel{flex:1; min-width:0; font-weight:bold;}
+.c-link{flex:none; font-size:11px; color:#fff; background:var(--sky1); border:2px solid #fff; border-radius:6px; padding:7px 9px; text-decoration:none; box-shadow:1px 1px 0 rgba(91,74,158,.3);}
+.c-link:hover{background:var(--lav-d);}
+.saved-tick{font-size:10px; color:var(--mint-d); margin-left:4px; opacity:0; transition:opacity .2s;}
+.saved-tick.show{opacity:1;}
+.empty{grid-column:1/-1; text-align:center; padding:40px; color:var(--lav-d);}
+
+/* taskbar */
+.taskbar{position:fixed; left:0; right:0; bottom:0; height:42px; z-index:70; display:flex; align-items:center; gap:8px; padding:0 10px;
+  background:linear-gradient(180deg,var(--lav),var(--lav-dd)); border-top:2px solid #fff;}
+.startbtn{font-family:'Baloo 2',cursive; font-weight:700; font-size:14px; color:#fff; background:var(--mint-d); border:2px solid #fff; border-radius:8px; padding:5px 16px; display:flex; align-items:center; gap:6px;}
+.startbtn .dot{width:12px; height:12px; border-radius:50%; background:#fff;}
+.taskbar .clock{margin-left:auto; background:rgba(255,255,255,.2); border:1px solid #fff; border-radius:6px; padding:5px 12px; font-size:13px; color:#fff; font-family:'VT323',monospace; letter-spacing:1px;}
+.taskbar .tsk{font-size:12px; color:#fff; background:rgba(255,255,255,.15); border:1px solid #fff9; border-radius:6px; padding:4px 12px;}
+@media(max-width:520px){.hero h1{font-size:30px;} .cards{grid-template-columns:1fr;} .taskbar .tsk{display:none;}}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+<div class="rainbow"></div>
+<div class="cloud c1"></div><div class="cloud c2"></div><div class="cloud c3"></div>
+<div class="sweep"></div>
+
+<div class="wrap">
+
+  <!-- HERO -->
+  <div class="window hero">
+    <div class="titlebar"><span class="ico"></span><span class="t">★ JobDesk 2000 — Career Manager.exe</span>
+      <span class="wbtns"><span class="wbtn">_</span><span class="wbtn">▢</span><span class="wbtn x">✕</span></span></div>
+    <div class="body">
+      <svg class="pixie" viewBox="0 0 200 300" role="img" aria-label="Фея-маскот JobDesk — метелик">
+        <defs>
+          <linearGradient id="wUp" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f3d0e6"/><stop offset="1" stop-color="#e6b8dc"/></linearGradient>
+          <linearGradient id="wLo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#eec2e0"/><stop offset="1" stop-color="#d98fc6"/></linearGradient>
+          <linearGradient id="bodyG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f2f8"/><stop offset="1" stop-color="#dfe0f2"/></linearGradient>
+        </defs>
+
+        <!-- sparkles around -->
+        <path class="spk" d="M118 26 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3 z" fill="#c9a8f0"/>
+        <circle cx="66" cy="44" r="7" fill="#d9c2f2"/>
+        <circle cx="60" cy="118" r="7" fill="#d9c2f2"/>
+        <circle cx="72" cy="150" r="4" fill="#d9c2f2"/>
+        <path d="M150 40 h5 v-5 h4 v5 h5 v4 h-5 v5 h-4 v-5 h-5 z" fill="#f0c2e0"/>
+        <path d="M96 250 h5 v-5 h4 v5 h5 v4 h-5 v5 h-4 v-5 h-5 z" fill="#f0c2e0"/>
+        <circle cx="132" cy="140" r="5" fill="#f0c2e0"/>
+        <circle cx="86" cy="262" r="5" fill="#f0c2e0"/>
+
+        <!-- BODY / cocoon (behind wings) -->
+        <path d="M100 62 C112 62 118 74 116 92 C114 118 110 150 100 168 C90 150 86 118 84 92 C82 74 88 62 100 62 Z" fill="url(#bodyG)"/>
+        <path d="M100 66 C96 78 94 96 96 118 C97 140 99 156 100 164 C101 156 103 140 104 118 C106 96 104 78 100 66 Z" fill="#cdd0ee" opacity=".8"/>
+        <path d="M100 108 C99 130 99 148 100 162" stroke="#b9bce4" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <!-- head bud -->
+        <path d="M88 74 C88 60 94 52 100 52 C106 52 112 60 112 74 C112 84 106 90 100 90 C94 90 88 84 88 74 Z" fill="#f4f2f8"/>
+        <path d="M90 70 C96 82 104 82 110 70 C112 62 106 58 100 58 C94 58 88 62 90 70 Z" fill="#e3e4f2"/>
+
+        <!-- WINGS: upper pair -->
+        <g class="wingL">
+          <path d="M96 96 C70 66 30 58 20 74 C12 88 26 118 52 138 C70 152 90 130 96 108 Z" fill="url(#wUp)"/>
+          <path d="M94 106 C74 84 44 80 34 92 C42 78 70 82 92 100 Z" fill="#d98fc6" opacity=".55"/>
+        </g>
+        <g class="wingR">
+          <path d="M104 96 C130 66 170 58 180 74 C188 88 174 118 148 138 C130 152 110 130 104 108 Z" fill="url(#wUp)"/>
+          <path d="M106 106 C126 84 156 80 166 92 C158 78 130 82 108 100 Z" fill="#d98fc6" opacity=".55"/>
+        </g>
+        <!-- WINGS: lower pair -->
+        <g class="wingL">
+          <path d="M96 112 C74 122 44 128 40 156 C37 178 58 186 76 172 C90 160 96 136 96 118 Z" fill="url(#wLo)"/>
+        </g>
+        <g class="wingR">
+          <path d="M104 112 C126 122 156 128 160 156 C163 178 142 186 124 172 C110 160 104 136 104 118 Z" fill="url(#wLo)"/>
+        </g>
+        <!-- wing seam highlight -->
+        <path d="M96 100 C90 120 90 150 96 172" stroke="#fff" stroke-width="1.5" fill="none" opacity=".5"/>
+        <path d="M104 100 C110 120 110 150 104 172" stroke="#fff" stroke-width="1.5" fill="none" opacity=".5"/>
+
+        <!-- bottom sparkle -->
+        <path class="spk" d="M100 196 l4 14 14 4 -14 4 -4 14 -4 -14 -14 -4 14 -4 z" fill="#b79ae8"/>
+      </svg>
+      <div class="htext">
+        <h1>JobDesk 2000</h1>
+        <div class="sub"><span class="sparkle">✦</span> твоя фея технологій сортує вакансії й веде весь пошук роботи <span class="sparkle">✦</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FAIRY MESSENGER — Cover Letter Generator -->
+  <div class="window say-win">
+    <div class="titlebar" style="background:linear-gradient(180deg,#ffcfe6,#e86aa6);"><span class="ico" style="background:#fff3a8;"></span><span class="t">✦ Fairy Messenger — Cover Letter Studio</span>
+      <span class="wbtns"><span class="wbtn" style="background:#ffb8d9;">_</span><span class="wbtn" style="background:#ffb8d9;">▢</span><span class="wbtn x">✕</span></span></div>
+    <div class="cl-body">
+      <div class="cl-row">
+        <svg class="cl-mini" viewBox="0 0 40 40" aria-hidden="true">
+          <path d="M20 12 C10 4 2 6 6 14 C9 20 16 16 20 14 Z" fill="#e6b8dc"/>
+          <path d="M20 12 C30 4 38 6 34 14 C31 20 24 16 20 14 Z" fill="#e6b8dc"/>
+          <path d="M20 16 C12 20 8 24 12 30 C16 34 20 26 20 20 Z" fill="#d98fc6"/>
+          <path d="M20 16 C28 20 32 24 28 30 C24 34 20 26 20 20 Z" fill="#d98fc6"/>
+          <path d="M18 8 C18 20 19 30 20 34 C21 30 22 20 22 8 Z" fill="#dfe0f2"/>
+        </svg>
+        <div class="say" id="say">Привіт, зірочко! ✦ Я допоможу написати cover letter. Спершу завантаж своє резюме (PDF), потім обери вакансію, мову й тон — і я складу листа під її вимоги на основі твого досвіду. <b>Летимо!</b></div>
+      </div>
+
+      <div class="cv-zone" id="cv-zone">
+        <span class="cv-ico">📄</span>
+        <div class="cv-txt" id="cv-txt"><b>Резюме не завантажено.</b> Завантаж своє CV у PDF — фея писатиме листи на його основі.</div>
+        <input type="file" id="cv-file" accept="application/pdf,.pdf" style="display:none;">
+        <button class="cv-btn" id="cv-upload">Завантажити CV (PDF)</button>
+        <button class="cv-clear" id="cv-remove" style="display:none;">прибрати</button>
+      </div>
+
+      <div class="cl-controls">
+        <div class="full">
+          <label>Вакансія</label>
+          <select id="cl-job" style="width:100%;"></select>
+        </div>
+        <div>
+          <label>Мова</label>
+          <select id="cl-lang" style="width:100%;"><option value="Ukrainian">Українська</option><option value="English">English</option></select>
+        </div>
+        <div>
+          <label>Тон</label>
+          <select id="cl-tone" style="width:100%;">
+            <option value="warm, confident, professional">Теплий + впевнений</option>
+            <option value="concise and punchy, direct">Короткий + чіткий</option>
+            <option value="creative and expressive, showing personality">Креативний</option>
+            <option value="formal and classic">Формальний</option>
+          </select>
+        </div>
+        <div class="full">
+          <label>Що підкреслити (необов'язково)</label>
+          <input id="cl-focus" type="text" placeholder="напр. досвід у showbiz / ENKO, AI-workflow, фестивалі..." style="width:100%; font-family:Tahoma; font-size:12px; border:1.5px solid var(--lav); border-radius:6px; padding:7px 9px; background:#faf8ff;">
+        </div>
+      </div>
+
+      <div class="cl-actions">
+        <button class="btn" id="cl-gen">✦ Написати листа</button>
+        <button class="btn mint" id="cl-copy" style="display:none;">Копіювати</button>
+      </div>
+      <div class="cl-status" id="cl-status"></div>
+      <div class="cl-out empty-state" id="cl-out">Тут з'явиться твій cover letter ✦</div>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="window stats-win">
+    <div class="titlebar"><span class="ico"></span><span class="t">📊 Statistics — Мій прогрес</span>
+      <span class="wbtns"><span class="wbtn">_</span><span class="wbtn">▢</span><span class="wbtn x">✕</span></span></div>
+    <div class="stats-grid">
+      <div class="stat"><div class="l">Всього</div><div class="v" style="color:var(--lav-dd)" id="s-total">0</div></div>
+      <div class="stat"><div class="l">Подано</div><div class="v" style="color:var(--lav-d)" id="s-applied">0</div></div>
+      <div class="stat"><div class="l">Співбесіди</div><div class="v" style="color:var(--sky1)" id="s-inter">0</div></div>
+      <div class="stat"><div class="l">Тестові</div><div class="v" style="color:var(--peach-d)" id="s-test">0</div></div>
+      <div class="stat"><div class="l">Оффери</div><div class="v" style="color:var(--mint-d)" id="s-offer">0</div></div>
+      <div class="stat"><div class="l">Відмови</div><div class="v" style="color:var(--pink-d)" id="s-reject">0</div></div>
+      <div class="prog-wrap"><div class="l">Пайплайн</div><div class="prog" id="prog"></div></div>
+    </div>
+  </div>
+
+  <!-- TOOLBAR -->
+  <div class="toolbar">
+    <select id="f-prio"><option value="">Всі пріоритети</option><option value="ХОЧУ">ХОЧУ до них</option><option value="Податися">Податися</option><option value="Подумати">Подумати</option></select>
+    <select id="f-field"></select>
+    <select id="f-emp"></select>
+    <select id="f-status"></select>
+    <select id="f-sal"><option value="">Будь-яка ЗП</option><option value="hasnum">Тільки з вказаною ЗП</option></select>
+    <div class="push">
+      <button class="btn" id="btn-add">✦ Додати вакансію</button>
+      <button class="btn mint" id="btn-reset">Скинути фільтри</button>
+      <button class="btn" id="btn-clear">Очистити все</button>
+    </div>
+  </div>
+
+  <div class="window" id="add-form" style="display:none; margin-bottom:22px;">
+    <div class="titlebar" style="background:linear-gradient(180deg,#c6ecff,#5aa0d8);"><span class="ico"></span><span class="t">➕ Нова вакансія</span>
+      <span class="wbtns"><span class="wbtn x" id="add-close">✕</span></span></div>
+    <div style="padding:16px; background:#fff; display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+      <div><label style="font-size:11px;color:var(--dim);text-transform:uppercase;">Компанія *</label><input id="a-company" style="width:100%;font-family:Tahoma;font-size:12px;border:1.5px solid var(--lav);border-radius:6px;padding:8px;background:#faf8ff;"></div>
+      <div><label style="font-size:11px;color:var(--dim);text-transform:uppercase;">Посада *</label><input id="a-title" style="width:100%;font-family:Tahoma;font-size:12px;border:1.5px solid var(--lav);border-radius:6px;padding:8px;background:#faf8ff;"></div>
+      <div><label style="font-size:11px;color:var(--dim);text-transform:uppercase;">Пріоритет</label><select id="a-prio" style="width:100%;"><option value="ХОЧУ">ХОЧУ до них</option><option value="Податися" selected>Податися</option><option value="Подумати">Подумати</option></select></div>
+      <div><label style="font-size:11px;color:var(--dim);text-transform:uppercase;">Галузь</label><input id="a-field" placeholder="напр. Design agency" style="width:100%;font-family:Tahoma;font-size:12px;border:1.5px solid var(--lav);border-radius:6px;padding:8px;background:#faf8ff;"></div>
+      <div><label style="font-size:11px;color:var(--dim);text-transform:uppercase;">Тип зайнятості</label><input id="a-emp" placeholder="напр. Full-time · Remote" style="width:100%;font-family:Tahoma;font-size:12px;border:1.5px solid var(--lav);border-radius:6px;padding:8px;background:#faf8ff;"></div>
+      <div><label style="font-size:11px;color:var(--dim);text-transform:uppercase;">Зарплата</label><input id="a-salary" placeholder="напр. $1000–1500" style="width:100%;font-family:Tahoma;font-size:12px;border:1.5px solid var(--lav);border-radius:6px;padding:8px;background:#faf8ff;"></div>
+      <div style="grid-column:1/-1;"><label style="font-size:11px;color:var(--dim);text-transform:uppercase;">Посилання на вакансію</label><input id="a-url" placeholder="https://..." style="width:100%;font-family:Tahoma;font-size:12px;border:1.5px solid var(--lav);border-radius:6px;padding:8px;background:#faf8ff;"></div>
+      <div style="grid-column:1/-1; display:flex; gap:8px;"><button class="btn" id="a-save">Зберегти вакансію</button><span id="a-msg" style="font-size:12px;color:var(--pink-d);align-self:center;"></span></div>
+    </div>
+  </div>
+
+  <div id="board"></div>
+
+</div>
+
+<div class="taskbar">
+  <div class="startbtn"><span class="dot"></span> start</div>
+  <div class="tsk">★ JobDesk 2000</div>
+  <div class="tsk">✦ Fairy Messenger</div>
+  <div class="clock" id="clock">11:11</div>
+</div>
+
+<script>
+const STATUSES=["Не подавалася","Подалася","Перша співбесіда","Тестове завдання","Друга співбесіда","Третя співбесіда","Оффер","Відмова"];
+const SC={
+ "Не подавалася":["#f0ecff","#8a7fb5","#c9bff0"],
+ "Подалася":["#e8e2ff","#7d6bc4","#b6a8e8"],
+ "Перша співбесіда":["#dff2ff","#3a8fc4","#8fd0f5"],
+ "Тестове завдання":["#fff0dc","#c47f2f","#ffd9a8"],
+ "Друга співбесіда":["#dff2ff","#3a8fc4","#8fd0f5"],
+ "Третя співбесіда":["#dbeeff","#2f7db0","#7ec8f0"],
+ "Оффер":["#e0fbec","#2f8a5a","#5bc98d"],
+ "Відмова":["#ffe4ec","#e86aa6","#ffb8d9"]
+};
+const PC={"ХОЧУ":["#ffb8d9","#e86aa6"],"Податися":["#b6a8e8","#7d6bc4"],"Подумати":["#8fd0f5","#3a8fc4"]};
+const SAY={
+ "Подалася":["Заявку відправлено ✦ хай алгоритми будуть на твоєму боці!","Клік — і твоє портфоліо вже летить до них ✦","Сигнал пішов у мережу ✦ чекаємо на відповідь!"],
+ "Перша співбесіда":["Перша співбесіда! ✦ вони хочуть побачити твоє сяйво","Вихід на зв'язок ✦ дихай глибше, ти чудова!"],
+ "Тестове завдання":["Тестове? Це твоя стихія ✦ покажи їм магію кольору"],
+ "Друга співбесіда":["Другий рівень пройдено ✦ прогрес росте!"],
+ "Третя співбесіда":["Третя співбесіда ✦ ти вже майже там!"],
+ "Оффер":["ОФФЕР!! ✦✦✦ феї танцюють разом з тобою!","Ти зробила це ✦ вітаю з оффером, зірочко!"],
+ "Відмова":["Не той портал — і це ок ✦ я вже підсвічую наступний","Одні двері зачинились ✦ твоє попереду, обіцяю"],
+ "Не подавалася":["Повернула вакансію в чергу ✦ коли будеш готова — я тут"]
+};
+
+let jobs=[];
+try{ jobs = JSON.parse(localStorage.getItem("jobdesk2000_jobs_v1")||"[]"); }catch(e){ jobs=[]; }
+if(!Array.isArray(jobs)) jobs=[];
+function persistJobs(){ try{ localStorage.setItem("jobdesk2000_jobs_v1", JSON.stringify(jobs)); }catch(e){} }
+
+const KEY="jobdesk2000_v1";
+let saved={};
+try{saved=JSON.parse(localStorage.getItem(KEY)||"{}");}catch(e){saved={};}
+jobs.forEach(j=>{ j.id=j.company+"|"+j.title; const s=saved[j.id]||{}; j.status=s.status||"Не подавалася"; j.date=s.date||""; j.note=s.note||""; });
+function persist(){ const o={}; jobs.forEach(j=>o[j.id]={status:j.status,date:j.date,note:j.note}); localStorage.setItem(KEY,JSON.stringify(o)); persistJobs(); }
+
+const board=document.getElementById('board');
+const fPrio=document.getElementById('f-prio'),fField=document.getElementById('f-field'),fEmp=document.getElementById('f-emp'),fStatus=document.getElementById('f-status'),fSal=document.getElementById('f-sal');
+function fill(sel,vals,label){const cur=sel.value;sel.innerHTML='<option value="">'+label+'</option>'+vals.map(v=>'<option value="'+v+'">'+v+'</option>').join('');if(cur&&vals.includes(cur))sel.value=cur;}
+function fillFilters(){
+  fill(fField,[...new Set(jobs.map(j=>j.field))].filter(f=>f!=='—').sort(),"Всі галузі");
+  fill(fEmp,[...new Set(jobs.map(j=>j.emp))].filter(f=>f!=='—').sort(),"Всі типи зайнятості");
+  fill(fStatus,STATUSES,"Всі статуси");
+}
+fillFilters();
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function hasNum(s){return /\d/.test(s);}
+function pass(j){
+  if(fPrio.value&&j.prio!==fPrio.value)return false;
+  if(fField.value&&j.field!==fField.value)return false;
+  if(fEmp.value&&j.emp!==fEmp.value)return false;
+  if(fStatus.value&&j.status!==fStatus.value)return false;
+  if(fSal.value==="hasnum"&&!hasNum(j.salary))return false;
+  return true;
+}
+function stSel(id,cur){const[bg,fg,br]=SC[cur];let o=STATUSES.map(s=>'<option value="'+s+'"'+(s===cur?' selected':'')+'>'+s+'</option>').join('');return '<select data-id="'+esc(id)+'" data-k="status" class="st-sel js-field" style="background:'+bg+';color:'+fg+';border-color:'+br+';">'+o+'</select>';}
+function card(j){const[pbg,pfg]=PC[j.prio];let m='';
+ if(j.field!=='—')m+='<span class="tag">◈ '+esc(j.field)+'</span>';
+ if(j.emp!=='—')m+='<span class="tag">⧗ '+esc(j.emp)+'</span>';
+ if(j.salary!=='—')m+='<span class="tag sal">₴ '+esc(j.salary)+'</span>';
+ const winTitle=esc(j.company)+' — Vacancy';
+ return '<div class="window card" style="--pc:'+pfg+'">'
+ +'<div class="titlebar" style="background:linear-gradient(180deg,'+pbg+','+pfg+');"><span class="ico" style="background:#fff;"></span><span class="t">'+winTitle+'</span>'
+ +'<span class="wbtns"><span class="wbtn" style="background:'+pbg+'">_</span><span class="wbtn" style="background:'+pbg+'">▢</span><span class="wbtn x">✕</span></span></div>'
+ +'<div class="body">'
+ +'<div class="c-title">'+esc(j.title)+'</div><div class="c-co">'+esc(j.company)+'</div>'
+ +'<div class="c-meta">'+m+'</div>'
+ +'<div class="field-row"><label>📅 Дата подачі</label><input type="date" data-id="'+esc(j.id)+'" data-k="date" class="js-field" value="'+esc(j.date)+'"></div>'
+ +'<div class="field-row"><label>📝 Нотатки</label><textarea data-id="'+esc(j.id)+'" data-k="note" class="js-field" placeholder="контакт, дедлайн тестового, враження...">'+esc(j.note)+'</textarea></div>'
+ +'<div class="c-foot">'+stSel(j.id,j.status)+'<span class="saved-tick" id="tick-'+btoa(unescape(encodeURIComponent(j.id))).replace(/=/g,'')+'">✓ збережено</span><a class="c-link" href="'+j.url+'" target="_blank" rel="noopener">Відкрити ↗</a></div>'
+ +'</div></div>';
+}
+function tickId(id){return 'tick-'+btoa(unescape(encodeURIComponent(id))).replace(/=/g,'');}
+function render(){
+ const gs=["ХОЧУ","Податися","Подумати"],ti={"ХОЧУ":"✦ ХОЧУ до них","Податися":"◇ Податися","Подумати":"· Подумати"};let h='';
+ gs.forEach(g=>{const list=jobs.filter(j=>j.prio===g&&pass(j));if(!list.length)return;
+  h+='<div class="group-h"><span class="chip" style="background:'+PC[g][1]+'">'+ti[g]+'</span><span class="cnt">['+list.length+']</span><span class="line"></span></div>';
+  h+='<div class="cards">'+list.map(card).join('')+'</div>';});
+ board.innerHTML=h||'<div class="empty">✦ нічого не знайдено за фільтрами ✦</div>';
+ board.querySelectorAll('.js-field').forEach(el=>{
+   const ev = el.classList.contains('st-sel') ? 'change' : 'input';
+   el.addEventListener(ev,e=>{
+     const j=jobs.find(x=>x.id===e.target.dataset.id); const k=e.target.dataset.k;
+     j[k]=e.target.value; persist();
+     if(k==='status'){ speak(e.target.value); render(); stats(); }
+     else{ const t=document.getElementById(tickId(j.id)); if(t){t.classList.add('show'); clearTimeout(t._to); t._to=setTimeout(()=>t.classList.remove('show'),1200);} }
+   });
+ });
+}
+function speak(st){const arr=SAY[st];if(!arr)return;document.getElementById('say').innerHTML=arr[Math.floor(Math.random()*arr.length)];}
+function stats(){
+ const IN=["Перша співбесіда","Друга співбесіда","Третя співбесіда"];
+ document.getElementById('s-total').textContent=jobs.length;
+ document.getElementById('s-applied').textContent=jobs.filter(j=>j.status==="Подалася").length;
+ document.getElementById('s-inter').textContent=jobs.filter(j=>IN.includes(j.status)).length;
+ document.getElementById('s-test').textContent=jobs.filter(j=>j.status==="Тестове завдання").length;
+ document.getElementById('s-offer').textContent=jobs.filter(j=>j.status==="Оффер").length;
+ document.getElementById('s-reject').textContent=jobs.filter(j=>j.status==="Відмова").length;
+ const total=jobs.length; let bars='';
+ STATUSES.forEach(s=>{const n=jobs.filter(j=>j.status===s).length; if(!n)return; const col=SC[s][1]; bars+='<i style="width:'+(n/total*100)+'%;background:'+col+';opacity:'+(s==="Не подавалася"?.3:.95)+'" title="'+s+': '+n+'"></i>';});
+ document.getElementById('prog').innerHTML=bars;
+}
+[fPrio,fField,fEmp,fStatus,fSal].forEach(s=>s.addEventListener('change',render));
+document.getElementById('btn-reset').addEventListener('click',()=>{fPrio.value='';fField.value='';fEmp.value='';fStatus.value='';fSal.value='';render();});
+document.getElementById('btn-clear').addEventListener('click',()=>{
+  if(!confirm('Видалити ВСІ вакансії разом зі статусами, датами й нотатками?'))return;
+  jobs.length=0; persist();
+  document.getElementById('say').innerHTML="Чистий старт ✦ додай свої вакансії кнопкою «Додати вакансію»."; render(); stats();
+  if(typeof fillFilters==='function') fillFilters();
+  if(typeof fillJobSelect==='function') fillJobSelect();
+});
+
+// --- Add vacancy form ---
+const addForm=document.getElementById('add-form');
+document.getElementById('btn-add').addEventListener('click',()=>{ addForm.style.display='block'; addForm.scrollIntoView({behavior:'smooth',block:'center'}); });
+document.getElementById('add-close').addEventListener('click',()=>{ addForm.style.display='none'; });
+document.getElementById('a-save').addEventListener('click',()=>{
+  const g=id=>document.getElementById(id).value.trim();
+  const company=g('a-company'), title=g('a-title');
+  const msg=document.getElementById('a-msg');
+  if(!company||!title){ msg.textContent='Заповни компанію і посаду ✦'; return; }
+  const nj={prio:document.getElementById('a-prio').value, company, title,
+    field:g('a-field')||'—', emp:g('a-emp')||'—', salary:g('a-salary')||'—', url:g('a-url')||'#'};
+  nj.id=nj.company+'|'+nj.title; nj.status='Не подавалася'; nj.date=''; nj.note='';
+  if(jobs.some(j=>j.id===nj.id)){ msg.textContent='Така вакансія вже є ✦'; return; }
+  jobs.push(nj); persist();
+  ['a-company','a-title','a-field','a-emp','a-salary','a-url'].forEach(id=>document.getElementById(id).value='');
+  msg.textContent='';
+  addForm.style.display='none';
+  fillFilters(); fillJobSelect(); render(); stats();
+  document.getElementById('say').innerHTML='Вакансію додано ✦ '+esc(company)+' у списку!';
+});
+
+function clock(){const d=new Date();document.getElementById('clock').textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+clock(); setInterval(clock,10000);
+render(); stats();
+
+/* ===== FAIRY COVER LETTER STUDIO ===== */
+// CV більше не зашите в код — користувач завантажує своє резюме (PDF).
+const CV_KEY = "jobdesk2000_cv_v1";
+let userCV = "";
+try{ userCV = localStorage.getItem(CV_KEY) || ""; }catch(e){ userCV = ""; }
+
+// pdf.js worker
+if(window.pdfjsLib){ pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }
+
+const cvZone=document.getElementById('cv-zone');
+const cvTxt=document.getElementById('cv-txt');
+const cvFile=document.getElementById('cv-file');
+const cvUpload=document.getElementById('cv-upload');
+const cvRemove=document.getElementById('cv-remove');
+
+function refreshCvUI(){
+  if(userCV && userCV.length>40){
+    cvZone.classList.add('loaded');
+    const words = userCV.trim().split(/\s+/).length;
+    cvTxt.innerHTML = '<b>Резюме завантажено ✦</b> Фея писатиме листи на його основі. ('+words+' слів)';
+    cvUpload.textContent = 'Замінити CV';
+    cvRemove.style.display='inline';
+  }else{
+    cvZone.classList.remove('loaded');
+    cvTxt.innerHTML = '<b>Резюме не завантажено.</b> Завантаж своє CV у PDF — фея писатиме листи на його основі.';
+    cvUpload.textContent = 'Завантажити CV (PDF)';
+    cvRemove.style.display='none';
+  }
+}
+refreshCvUI();
+
+cvUpload.addEventListener('click', ()=>cvFile.click());
+cvRemove.addEventListener('click', ()=>{
+  userCV=""; try{localStorage.removeItem(CV_KEY);}catch(e){}
+  refreshCvUI();
+  document.getElementById('say').innerHTML='CV прибрано ✦ завантаж нове, коли будеш готова.';
+});
+cvFile.addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  if(file.type!=='application/pdf' && !file.name.toLowerCase().endsWith('.pdf')){
+    document.getElementById('say').innerHTML='Це не PDF ✦ обери файл резюме у форматі .pdf';
+    return;
+  }
+  cvTxt.innerHTML='<b>Читаю резюме...</b> ✦ хвилинку';
+  try{
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+    let full="";
+    for(let p=1;p<=pdf.numPages;p++){
+      const page = await pdf.getPage(p);
+      const content = await page.getTextContent();
+      full += content.items.map(it=>it.str).join(' ') + "\n";
+    }
+    full = full.replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
+    if(full.length<40){
+      cvTxt.innerHTML='<b>Не вдалося зчитати текст.</b> Можливо, це скан-зображення. Спробуй PDF із текстовим шаром.';
+      cvZone.classList.remove('loaded');
+      return;
+    }
+    userCV = full;
+    try{ localStorage.setItem(CV_KEY, userCV); }
+    catch(err){ document.getElementById('say').innerHTML='CV завелике для збереження ✦ воно працюватиме зараз, але не збережеться після перезавантаження.'; }
+    refreshCvUI();
+    document.getElementById('say').innerHTML='Резюме завантажено ✦ тепер обери вакансію — і я напишу листа!';
+  }catch(err){
+    cvTxt.innerHTML='<b>Помилка читання PDF.</b> Спробуй інший файл.';
+    cvZone.classList.remove('loaded');
+  }
+  cvFile.value='';
+});
+
+const clJob=document.getElementById('cl-job');
+function fillJobSelect(){
+  if(!jobs.length){ clJob.innerHTML='<option value="">— спершу додай вакансію —</option>'; return; }
+  clJob.innerHTML = jobs.map((j,i)=>'<option value="'+i+'">['+j.prio+'] '+esc(j.company)+' — '+esc(j.title)+'</option>').join('');
+}
+fillJobSelect();
+
+document.getElementById('cl-gen').addEventListener('click', generateCoverLetter);
+document.getElementById('cl-copy').addEventListener('click', ()=>{
+  const t=document.getElementById('cl-out').textContent;
+  navigator.clipboard.writeText(t).then(()=>{ setStatus('Скопійовано ✦'); });
+});
+function setStatus(msg, typing){
+  const el=document.getElementById('cl-status');
+  el.innerHTML = typing ? 'Фея пише листа <span class="typing"><i></i><i></i><i></i></span>' : msg;
+}
+async function generateCoverLetter(){
+  if(!jobs.length){ document.getElementById('say').innerHTML='Спершу додай хоча б одну вакансію ✦'; return; }
+  if(!userCV || userCV.length<40){
+    document.getElementById('say').innerHTML='Спершу завантаж своє резюме (PDF) ✦ без нього я не знаю твого досвіду.';
+    const z=document.getElementById('cv-zone'); z.style.transition='transform .15s'; z.style.transform='scale(1.02)'; setTimeout(()=>z.style.transform='',180);
+    return;
+  }
+  const j = jobs[+clJob.value];
+  const lang = document.getElementById('cl-lang').value;
+  const tone = document.getElementById('cl-tone').value;
+  const focus = document.getElementById('cl-focus').value.trim();
+  const out = document.getElementById('cl-out');
+  const copyBtn = document.getElementById('cl-copy');
+  copyBtn.style.display='none';
+  out.classList.remove('empty-state');
+  out.textContent='';
+  setStatus('', true);
+  document.getElementById('say').innerHTML='Складаю листа під <b>'+esc(j.company)+'</b> ✦ хвилинку...';
+
+  const vacancy = 'Компанія: '+j.company+'\nПосада: '+j.title+'\nГалузь: '+j.field+'\nТип зайнятості: '+j.emp+'\nЗарплата: '+j.salary+'\nПосилання: '+j.url;
+  const focusLine = focus ? ('\nОсобливо підкресли: '+focus) : '';
+
+  const prompt = `Ти — досвідчений кар'єрний копірайтер. Напиши персоналізований cover letter (супровідний лист) мовою: ${lang}. Тон: ${tone}.
+
+ВАКАНСІЯ:
+${vacancy}${focusLine}
+
+РЕЗЮМЕ КАНДИДАТА (витягнуте з його PDF-резюме — може містити артефакти форматування, орієнтуйся на зміст):
+${userCV}
+
+ВИМОГИ ДО ЛИСТА:
+- Пиши від першої особи, від імені кандидата (визнач ім'я з резюме; якщо не знайдеш — не вигадуй, обійдись без імені).
+- Прив'яжи конкретний релевантний досвід і навички кандидата саме до цієї вакансії та її галузі. Обирай найрелевантніші кейси з резюме.
+- Не вигадуй досвіду, якого немає в резюме. Використовуй лише реальні факти з нього.
+- 3–4 стислі абзаци: гачок → чому підходжу (конкретика) → що принесу компанії → заклик/подяка.
+- Без надмірного пафосу й кліше. Жива, впевнена мова.
+- Не додавай плейсхолдерів типу [Ім'я менеджера] без потреби; можна почати з нейтрального привітання.
+- Поверни ЛИШЕ текст листа, без коментарів, без пояснень, без markdown-заголовків.`;
+
+  try{
+    const resp = await fetch("/.netlify/functions/cover-letter", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ prompt: prompt })
+    });
+    if(!resp.ok){ throw new Error('HTTP '+resp.status); }
+    const data = await resp.json();
+    const text = (data.text||'').trim();
+    if(!text) throw new Error('empty');
+    out.textContent = text;
+    copyBtn.style.display='inline-block';
+    setStatus('Готово ✦ перечитай і підправ під себе');
+    document.getElementById('say').innerHTML='Лист готовий ✦ це чернетка — додай своє тепло й відправляй, зірочко!';
+  }catch(err){
+    out.classList.add('empty-state');
+    out.textContent='Ой, магія не спрацювала ✦ спробуй ще раз за мить.';
+    setStatus('Помилка звʼязку. Спробуй повторити.');
+    document.getElementById('say').innerHTML='Щось завадило звязку ✦ натисни «Написати листа» ще раз.';
+  }
+}
+</script>
+</body>
+</html>
