@@ -1,0 +1,11 @@
+# Конфігурація Netlify для JobDesk 2000
+
+[build]
+  # Папка, яку публікуємо (корінь проєкту)
+  publish = "."
+  # Де лежать serverless-функції
+  functions = "netlify/functions"
+
+[functions]
+  # Використовуємо сучасний Node.js runtime
+  node_bundler = "esbuild"
