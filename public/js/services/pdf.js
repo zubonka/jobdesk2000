@@ -2,27 +2,43 @@
 
 const CDN = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
 const INTEGRITY = "sha512-q+4liFwdPC/bNdhUpZx6aXDx/h77yEQtn4I1slHydcbZK34nLaR3cAeYSJshoxIOq3mjEf7xJE8YWIUHMn+oCQ==";
+const WORKER_INTEGRITY = "sha512-BbrZ76UNZq5BhH7LL7pn9A4TKQpQeNCHOo65/akfelcIBbcVvYWOFQKPXIrykE3qZxYjmDX573oa4Ywsc7rpTw==";
 
 let loading = null;
 
-function loadPdfJs() {
-  loading ||= new Promise((resolve, reject) => {
+// The worker runs with this site's origin, so it is checked like the main script: fetched with its SRI hash
+// and handed to pdf.js as a blob: URL (a plain workerSrc would be importScripts()-ed without any check).
+async function verifiedWorkerUrl() {
+  const res = await fetch(CDN + "pdf.worker.min.js", { integrity: WORKER_INTEGRITY, mode: "cors", credentials: "omit" });
+  if (!res.ok) throw new Error("pdf.js worker HTTP " + res.status);
+  return URL.createObjectURL(new Blob([await res.text()], { type: "text/javascript" }));
+}
+
+function loadScript() {
+  return new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.src = CDN + "pdf.min.js";
     script.integrity = INTEGRITY;
     script.crossOrigin = "anonymous";
-    script.addEventListener("load", () => {
-      const { pdfjsLib } = window;
-      pdfjsLib.GlobalWorkerOptions.workerSrc = CDN + "pdf.worker.min.js";
-      resolve(pdfjsLib);
-    });
+    script.addEventListener("load", () => resolve(window.pdfjsLib));
     script.addEventListener("error", () => {
       script.remove();
-      loading = null; // a failed load (offline, blocked CDN) must not stick: the next PDF tries again
       reject(new Error("pdf.js failed to load"));
     });
     document.head.appendChild(script);
   });
+}
+
+function loadPdfJs() {
+  loading ||= Promise.all([loadScript(), verifiedWorkerUrl()])
+    .then(([pdfjsLib, workerUrl]) => {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+      return pdfjsLib;
+    })
+    .catch((err) => {
+      loading = null; // a failed load (offline, blocked CDN, wrong hash) must not stick: the next PDF tries again
+      throw err;
+    });
   return loading;
 }
 

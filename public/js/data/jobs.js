@@ -3,7 +3,7 @@
 
 import { KEYS, getJSON, setJSON } from "../core/storage.js";
 import { emit } from "../core/events.js";
-import { safeUrl, todayISO } from "../core/dom.js";
+import { todayISO } from "../core/dom.js";
 import { statusKeyOf, statusLabel } from "./statuses.js";
 import { gender } from "./user.js";
 
@@ -40,7 +40,7 @@ function fromStorage(raw) {
     prio: PRIORITIES.includes(raw.prio) ? raw.prio : DEFAULT_PRIO,
     company, title,
     field: text(raw.field, NONE), emp: text(raw.emp, NONE), loc: text(raw.loc, NONE), salary: text(raw.salary, NONE),
-    url: safeUrl(raw.url),
+    url: normalizeUrl(raw.url),
   };
 }
 

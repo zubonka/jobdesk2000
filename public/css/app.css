@@ -80,6 +80,8 @@ input, textarea{user-select:text; -webkit-user-select:text;}
 .win-resize{position:absolute; right:0; bottom:0; width:1.125rem; height:1.125rem; cursor:nwse-resize; z-index:5;
   background:linear-gradient(135deg, transparent 50%, var(--win-border) 50%, var(--win-border) 60%, transparent 60%, transparent 72%, var(--win-border) 72%, var(--win-border) 82%, transparent 82%);}
 body.tile-mode .win-resize{display:none;}
+/* a finger on a title bar or the grip drags the window instead of panning the page (tablets, touch laptops) */
+body:not(.tile-mode) .win[data-app] .win-head, .win-resize{touch-action:none;}
 .win-head{display:flex; align-items:center; gap:.5rem; padding:.4375rem .5625rem; cursor:move;
   background:linear-gradient(180deg,var(--win-head2),var(--win-head1)); color:#fff; flex:none;}
 .dialog .win-head{cursor:default;}

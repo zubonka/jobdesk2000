@@ -31,9 +31,12 @@ export function loadFirebase() {
         import(SDK + "firebase-firestore.js"),
       ]);
       const app = initializeApp(EMULATOR_HOST ? { ...CONFIG, projectId: EMULATOR_PROJECT, authDomain: "localhost" } : CONFIG);
-      // initializeAuth instead of getAuth: getAuth also boots the popup/redirect iframe (~95 KB) on every
-      // page load, while only Google sign-in needs it (services/auth.js passes the resolver there).
-      const auth = A.initializeAuth(app, { persistence: [A.indexedDBLocalPersistence, A.browserLocalPersistence, A.browserSessionPersistence] });
+      // Firebase starts after "load" (main.js). With the popup resolver given here it preloads its iframe only
+      // where it must (Safari, iOS, mobile browsers), so the first tap on Google opens the popup within the gesture.
+      const auth = A.initializeAuth(app, {
+        persistence: [A.indexedDBLocalPersistence, A.browserLocalPersistence, A.browserSessionPersistence],
+        popupRedirectResolver: A.browserPopupRedirectResolver,
+      });
       auth.languageCode = "uk";
       const db = F.getFirestore(app);
       if (EMULATOR_HOST) {

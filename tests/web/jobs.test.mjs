@@ -170,3 +170,14 @@ test("resetProgress clears statuses, application dates and notes but keeps deadl
   assert.deepEqual(storedJSON(KEYS.progress)[id], { status: "Не подавалася", date: "", deadline: "2026-11-01", note: "" });
   assert.equal(jobs.allJobs().length, 1);
 });
+
+test("links saved by the original app without a scheme stay usable; unsafe ones become '#'", () => {
+  startWith({
+    [KEYS.jobs]: [
+      { prio: "Податися", company: "A", title: "One", url: "djinni.co/jobs/123-designer" },
+      { prio: "Податися", company: "B", title: "Two", url: "javascript:alert(1)" },
+      { prio: "Податися", company: "C", title: "Three", url: "https://work.ua/jobs/1/" },
+    ],
+  });
+  assert.deepEqual(jobs.allJobs().map((j) => j.url), ["https://djinni.co/jobs/123-designer", "#", "https://work.ua/jobs/1/"]);
+});

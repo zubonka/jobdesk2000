@@ -53,7 +53,8 @@ export function openWin(app) {
   if (!w) return;
   const wasOpen = w.classList.contains("open");
   w.classList.add("open");
-  if (!wasOpen) placeNew(w);
+  if (tileMode) { if (w.parentElement !== byId("tilewrap")) byId("tilewrap").appendChild(w); }
+  else if (!wasOpen) placeNew(w);
   focusWin(app);
   (openHooks[app] || []).forEach((fn) => fn());
 }
