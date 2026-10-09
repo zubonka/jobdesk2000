@@ -45,6 +45,9 @@ export function initTaskbar() {
   for (const item of qsa(".sm-item[data-sm]", menu())) {
     item.addEventListener("click", () => { setMenu(false); openWin(item.dataset.sm); });
   }
+  for (const item of qsa(".sm-item[data-action]", menu())) {
+    item.addEventListener("click", () => { setMenu(false); emit("menu", item.dataset.action); });
+  }
   byId("sm-auth").addEventListener("click", () => { setMenu(false); emit("account"); });
   byId("btn-account").addEventListener("click", () => emit("account"));
 

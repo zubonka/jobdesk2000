@@ -13,6 +13,7 @@ export const APPS = {
   fairy: { icon: "🧚", label: "Моя Фея", needsAuth: true },
   about: { icon: "ℹ️", label: "Про застосунок" },
   valya: { icon: "👩‍🍳", label: "Балувана Валя" },
+  readme: { icon: "📄", label: "README.TXT" },
 };
 export const APP_NAMES = Object.keys(APPS);
 

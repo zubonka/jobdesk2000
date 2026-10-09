@@ -1,7 +1,8 @@
 // User journeys, run on a desktop browser and on an iPhone 11 (see playwright.config.mjs).
 // The dev server answers the AI with a deterministic mock and signs people in through the Firebase emulators.
+import fs from "node:fs";
 import { test, expect } from "@playwright/test";
-import { seedStorage, openApp, openWindow, register, signIn, signOut, setMock, freshEmail, confirmYes, PASSWORD } from "./helpers.mjs";
+import { seedStorage, seedVacancies, openApp, openWindow, closeWindow, register, signIn, signOut, setMock, freshEmail, confirmYes, PASSWORD } from "./helpers.mjs";
 
 const VACANCY_TEXT = "Acme Studio шукає Senior Graphic Designer. Повна зайнятість, віддалено. Зарплата 1500-2000$. Досвід 3+ роки у Figma.";
 const CV_TEXT = "Олена Тестенко. Графічна дизайнерка, 5 років брендингу: Figma, Illustrator, Photoshop. Айдентика для музичного лейблу.";
@@ -12,7 +13,7 @@ test("a guest adds vacancies by text, by link and by hand, edits, filters and re
   await page.locator('.d-icon[data-open="vacancies"]').click();
   const win = page.locator("#win-vacancies");
   await expect(win).toHaveClass(/open/);
-  await expect(win.locator("#board")).toContainText("Нічого не знайдено");
+  await expect(win.locator("#board")).toContainText("Тут поки порожньо");
 
   // pasted text
   await win.locator("#btn-paste").click();
@@ -80,6 +81,31 @@ test("a guest adds vacancies by text, by link and by hand, edits, filters and re
   await win.locator(".jobcard", { hasText: "Label Records" }).locator(".jdel").click();
   await confirmYes(page);
   await expect(win.locator(".jobcard")).toHaveCount(1);
+
+  // a removal can be undone from the notice, with everything the card had
+  await expect(page.locator("#toast")).toContainText("Вакансію прибрано");
+  await page.locator("#toast .toast-act").click();
+  await expect(win.locator(".jobcard")).toHaveCount(2);
+  await expect(win.locator(".jobcard", { hasText: "Label Records" })).toHaveCount(1);
+
+  // search looks through titles, companies and notes
+  await win.locator("#f-search").fill("пʼятницю");
+  await expect(win.locator(".jobcard")).toHaveCount(1);
+  await win.locator("#f-search").fill("нема такого");
+  await expect(win.locator("#board")).toContainText("Нічого не знайдено");
+  await win.locator("#btn-reset").click();
+  await expect(win.locator("#f-search")).toHaveValue("");
+  await expect(win.locator(".jobcard")).toHaveCount(2);
+
+  // a deadline tomorrow gets a badge at once, without redrawing the card
+  const tomorrow = await page.evaluate(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  });
+  const card = win.locator(".jobcard", { hasText: "Label Records" });
+  await card.locator('input[data-k="deadline"]').fill(tomorrow);
+  await expect(card.locator(".jtag.dl")).toHaveText("⏳ дедлайн завтра");
 });
 
 test("registration, a cover letter, a revision, a busy retry and copying", async ({ page, browserName, context, baseURL }, testInfo) => {
@@ -333,4 +359,46 @@ test("an edit in a tab closed right away is not lost, and two tabs do not overwr
   await openWindow(again, "vacancies");
   await expect(again.locator(".jobcard", { hasText: "Tab Two Co" }).locator('textarea[data-k="note"]')).toHaveValue("закрила вкладку одразу");
   await expect(again.locator(".jobcard", { hasText: "Tab One" }).locator(".st-sel")).toHaveValue("offer");
+});
+
+test("a guest saves a copy of the data, loses it and gets it back from the copy; README.TXT explains it all", async ({ page }) => {
+  await seedVacancies(page);
+  await openApp(page);
+
+  // README.TXT opens from the desktop and from START
+  await page.locator('.d-icon[data-open="readme"]').click();
+  await expect(page.locator("#win-readme")).toHaveClass(/open/);
+  await expect(page.locator("#win-readme")).toContainText("Копія даних");
+  await closeWindow(page, "readme");
+  await page.locator("#startbtn").click();
+  await page.locator('#startmenu [data-sm="readme"]').click();
+  await expect(page.locator("#win-readme")).toHaveClass(/open/);
+  await closeWindow(page, "readme");
+
+  // the copy and the table
+  await page.locator("#startbtn").click();
+  const [copy] = await Promise.all([page.waitForEvent("download"), page.locator('#startmenu [data-action="backup"]').click()]);
+  expect(copy.suggestedFilename()).toMatch(/^jobdesk2000-backup-\d{4}-\d{2}-\d{2}\.json$/);
+  const copyText = fs.readFileSync(await copy.path(), "utf8");
+  expect(JSON.parse(copyText).app).toBe("JobDesk 2000");
+  await page.locator("#startbtn").click();
+  const [table] = await Promise.all([page.waitForEvent("download"), page.locator('#startmenu [data-action="table"]').click()]);
+  const csv = fs.readFileSync(await table.path(), "utf8");
+  expect(csv.split("\r\n")[1]).toContain("Acme Studio;Senior Graphic Designer");
+
+  // everything is gone, then comes back from the file
+  await page.evaluate(() => { localStorage.removeItem("jobdesk2000_added_v1"); localStorage.removeItem("jobdesk2000_v1"); });
+  await page.reload();
+  await openWindow(page, "vacancies");
+  await expect(page.locator(".jobcard")).toHaveCount(0);
+  await page.locator("#backup-file").setInputFiles({ name: "copy.json", mimeType: "application/json", buffer: Buffer.from(copyText) });
+  await expect(page.locator("#confirm-text")).toContainText("вакансій: 3");
+  await confirmYes(page);
+  await expect(page.locator(".jobcard")).toHaveCount(3);
+  await expect(page.locator("#toast")).toContainText("додано вакансій: 3");
+  await expect(page.locator('.jobcard textarea[data-k="note"]').first()).toHaveValue("HR: Олена");
+
+  // a file that is not a copy is refused
+  await page.locator("#backup-file").setInputFiles({ name: "x.json", mimeType: "application/json", buffer: Buffer.from('{"hello":1}') });
+  await expect(page.locator("#toast")).toContainText("не схоже на копію");
 });

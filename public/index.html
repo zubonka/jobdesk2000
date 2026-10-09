@@ -109,6 +109,7 @@
     <button type="button" class="ui d-icon" data-open="fairy"><span class="glyph"><img src="assets/icons/fairy.png" alt="" width="64" height="64"></span><span class="lbl">Моя Фея</span></button>
     <button type="button" class="ui d-icon" data-open="about"><span class="glyph"><img src="assets/icons/about.png" alt="" width="64" height="64"></span><span class="lbl">Про застосунок</span></button>
     <button type="button" class="ui d-icon" data-open="valya"><span class="glyph"><img src="assets/icons/valya.png" alt="" width="64" height="64"></span><span class="lbl">Балувана Валя</span></button>
+    <button type="button" class="ui d-icon" data-open="readme"><span class="glyph"><img src="assets/icons/readme.png" alt="" width="64" height="64"></span><span class="lbl">README.TXT</span></button>
   </nav>
 
   <div id="tilewrap"></div>
@@ -268,6 +269,54 @@
       </div>
       <h3 class="wh h17">Умови</h3>
       <p class="muted terms">Реєстрація (пошта / Google) працює через <b>Firebase Authentication</b> — зберігається лише твоя пошта та імʼя для входу. Усе інше — вакансії, нотатки, фея, налаштування — зберігається <b>локально у твоєму браузері</b> й нікуди не надсилається (тому дані привʼязані до цього пристрою). Текст резюме, який ти завантажуєш, і запити на листи обробляються через <b>Google Gemini</b> задля генерації. Застосунок безкоштовний і створений для особистого користування ✦</p>
+    </div>
+  </section>
+
+  <!-- README.TXT: how everything works -->
+  <section class="win" id="win-readme" data-app="readme" aria-labelledby="ti-readme">
+    <div class="win-head"><span class="ic"></span><span class="ti" id="ti-readme"><img class="ti-icon" src="assets/icons/readme.png" alt="">README.TXT — Блокнот</span>
+      <span class="win-btns"><button type="button" class="ui win-btn" data-min="readme" aria-label="Згорнути">_</button><button type="button" class="ui win-btn close" data-close="readme" aria-label="Закрити">✕</button></span></div>
+    <div class="win-body notepad">
+      <article class="readme">
+        <h2 class="readme-title">README.TXT ✦ як тут усе влаштовано</h2>
+        <h3>1. Вакансії 💼</h3>
+        <ul>
+          <li>Встав посилання на вакансію й натисни «✦ Аналіз»: фея сама розбере компанію, посаду, зарплату й формат роботи.</li>
+          <li>Деякі сайти не пускають фею. Тоді відкрий вакансію, скопіюй увесь текст і натисни «📋 Вставити текст вакансії».</li>
+          <li>Або заповни все сам(а): «✏️ Додати вручну».</li>
+        </ul>
+        <h3>2. Статуси й дедлайни 📊</h3>
+        <ul>
+          <li>Став статус на картці: подача, співбесіда, тестове, оффер. Дата подачі поставиться сама, а «Статистика» все порахує.</li>
+          <li>Впиши ⏳ дедлайн: за два тижні до нього на картці зʼявиться позначка, а за три дні нагадає фея.</li>
+          <li>🔍 Пошук знаходить вакансію за посадою, компанією чи нотатками (на компʼютері досить натиснути /).</li>
+        </ul>
+        <h3>3. Cover letter ✉️</h3>
+        <ul>
+          <li>Потрібен акаунт. У «Фейрі месенджері» завантаж резюме (PDF) або встав його текстом.</li>
+          <li>Обери вакансію, мову й тон і натисни «✦ Написати листа»: лист пишеться саме за цією кнопкою.</li>
+          <li>Далі пиши феї в чат, що змінити: «коротше», «більше про брендинг», «тепліше».</li>
+          <li>Якщо фея зайнята, вона сама спробує ще раз за кілька секунд.</li>
+        </ul>
+        <h3>4. Акаунт і хмара 👤</h3>
+        <ul>
+          <li>Гостем усе зберігається лише в цьому браузері.</li>
+          <li>З акаунтом (пошта або Google) вакансії, нотатки, резюме, фея й фон синхронізуються між твоїми пристроями, навіть якщо щось змінилося без інтернету.</li>
+          <li>На чужому пристрої виходь з акаунта: дані акаунта зникнуть звідти, а в хмарі лишаться.</li>
+        </ul>
+        <h3>5. Копія даних 💾</h3>
+        <ul>
+          <li>START → «💾 Зберегти копію даних» скачає файл з вакансіями, нотатками й феєю, а «📂 Відновити з копії» поверне їх на будь-якому пристрої.</li>
+          <li>«📊 Вакансії в таблицю (CSV)» відкривається в Excel чи Google Таблицях.</li>
+        </ul>
+        <h3>6. Дрібнички ✦</h3>
+        <ul>
+          <li>Видалено вакансію чи натиснуто Reset випадково? Тисни «↶ Повернути» в повідомленні внизу.</li>
+          <li>▦ розкладає вікна сіткою, ☀️ / 🌙 перемикає тему, Esc закриває діалог, а ярлики на робочому столі можна перетягувати.</li>
+          <li>У «Моїй Феї» обери й розфарбуй фею та постав свій фон робочого столу.</li>
+        </ul>
+      </article>
+      <div class="notepad-status" aria-hidden="true"><span>Рядок 1, стовп. 1</span><span>UTF-8 ✦</span></div>
     </div>
   </section>
 
@@ -441,6 +490,12 @@
     <button type="button" class="ui sm-item" role="menuitem" data-sm="fairy"><img src="assets/icons/fairy.png" alt="">Моя фея</button>
     <button type="button" class="ui sm-item" role="menuitem" data-sm="about"><img src="assets/icons/about.png" alt="">Про застосунок</button>
     <button type="button" class="ui sm-item" role="menuitem" data-sm="valya"><img src="assets/icons/valya.png" alt="">Балувана Валя</button>
+    <button type="button" class="ui sm-item" role="menuitem" data-sm="readme"><img src="assets/icons/readme.png" alt="">README.TXT: як усе влаштовано</button>
+    <div class="sm-sep"></div>
+    <button type="button" class="ui sm-item" role="menuitem" data-action="backup">💾 Зберегти копію даних</button>
+    <button type="button" class="ui sm-item" role="menuitem" data-action="restore">📂 Відновити з копії</button>
+    <button type="button" class="ui sm-item" role="menuitem" data-action="table">📊 Вакансії в таблицю (CSV)</button>
+    <input type="file" id="backup-file" accept="application/json,.json" hidden>
     <div class="sm-sep"></div>
     <button type="button" class="ui sm-item" role="menuitem" id="sm-auth">👤 Увійти / зареєструватися</button>
   </div>

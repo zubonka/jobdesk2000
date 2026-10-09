@@ -4,7 +4,7 @@ import fs from "node:fs";
 import { test, expect } from "@playwright/test";
 import { seedVacancies, seedStorage, openApp, openWindow, closeWindow, register, freshEmail, layoutProblems } from "./helpers.mjs";
 
-const GUEST_WINDOWS = ["vacancies", "stats", "about", "valya"];
+const GUEST_WINDOWS = ["vacancies", "stats", "about", "valya", "readme"];
 
 async function check(page, testInfo, screen) {
   await page.waitForTimeout(350); // let open/close animations settle
@@ -50,6 +50,13 @@ test.describe("@layout", () => {
     await expect(page.locator("#confirm-overlay")).toHaveClass(/open/);
     await check(page, testInfo, "05b-confirm-dialog");
     await page.keyboard.press("Escape");
+
+    // the undo notice after a removal
+    await page.locator(".jdel").first().click();
+    await page.locator("#confirm-ok").click();
+    await expect(page.locator("#toast")).toBeVisible();
+    await check(page, testInfo, "05c-undo-notice");
+    await page.locator("#toast .toast-act").click();
 
     await page.locator("#btn-paste").click();
     await check(page, testInfo, "06-paste-box");

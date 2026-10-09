@@ -9,6 +9,7 @@
 //   gate       a guest tried to open a members-only app (detail: app name)
 //   auth:open  someone asked for the sign-in dialog (detail: "login" | "register")
 //   account    the account button or start menu account item was clicked
+//   menu       a START menu command was chosen (detail: "backup" | "restore" | "table")
 //   state      local data was replaced (from the cloud, another tab or a backup); every module reloads from storage
 //   firebase   Firebase finished loading
 
