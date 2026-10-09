@@ -48,7 +48,8 @@ on("state", () => {
   emit("wallpaper");
 });
 
-initAuth();
+// Firebase (~175 KB) waits for the page to load; the desktop already renders from the local copy of the user.
+window.addEventListener("load", initAuth, { once: true });
 maybeWelcome();
 setTimeout(greet, 1000);
 

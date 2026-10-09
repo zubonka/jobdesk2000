@@ -60,11 +60,16 @@ function initWelcome() {
   });
 }
 
-// First visit only, and not for someone who is already signed in.
+// First visit only, and not for someone who is already signed in. The inline script in index.html has
+// already shown the dialog through the "first-visit" class; from here on the "open" class owns it.
 export function maybeWelcome() {
-  if (getRaw(KEYS.welcomed) === "1" || isAuthed()) return;
-  paintFairy(byId("welcome-fairy"), { type: fairyType(), size: "96px" });
-  openDialog("welcome-overlay");
+  const root = document.documentElement;
+  const show = getRaw(KEYS.welcomed) !== "1" && !isAuthed();
+  if (show) {
+    paintFairy(byId("welcome-fairy"), { type: fairyType(), size: "96px" });
+    openDialog("welcome-overlay");
+  }
+  root.classList.remove("first-visit");
 }
 
 export function initDialogs() {

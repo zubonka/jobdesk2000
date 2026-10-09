@@ -72,7 +72,7 @@ export async function signIn(email, password) {
 // Returns { user, needsGender } so the dialog can ask how to address a first-time Google user.
 export async function signInWithGoogle(pendingGender) {
   const { A, auth } = await sdk();
-  const cr = await A.signInWithPopup(auth, new A.GoogleAuthProvider());
+  const cr = await A.signInWithPopup(auth, new A.GoogleAuthProvider(), A.browserPopupRedirectResolver);
   const u = cr.user;
   if (pendingGender && (!hasGenderFor(u.uid) || genderFor(u.uid) === "n")) rememberGender(u.uid, pendingGender);
   setUser({ name: nameOf(u), email: u.email || "", gender: genderFor(u.uid), uid: u.uid });

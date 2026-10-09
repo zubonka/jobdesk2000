@@ -38,7 +38,9 @@ export function loadFirebase() {
         import(SDK + "firebase-firestore.js"),
       ]);
       const app = initializeApp(EMULATORS ? { ...CONFIG, projectId: EMULATOR_PROJECT, authDomain: "localhost" } : CONFIG);
-      const auth = A.getAuth(app);
+      // initializeAuth instead of getAuth: getAuth also boots the popup/redirect iframe (~95 KB) on every
+      // page load, while only Google sign-in needs it (services/auth.js passes the resolver there).
+      const auth = A.initializeAuth(app, { persistence: [A.indexedDBLocalPersistence, A.browserLocalPersistence, A.browserSessionPersistence] });
       auth.languageCode = "uk";
       const db = F.getFirestore(app);
       if (EMULATORS) {
