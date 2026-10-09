@@ -1,7 +1,7 @@
 // Local dev server, no dependencies: serves public/ the way Netlify does, runs
 // netlify/functions/<name>.js on /.netlify/functions/<name> and applies [[headers]] from netlify.toml.
 // Without AI keys (or with MOCK_AI=1) Gemini and Groq are answered by a deterministic mock.
-// Env: PORT (8888), HOST (127.0.0.1), MOCK_AI=1, AUTH_TEST_CERTS=<certs.json>; ./.env is read too.
+// Env: PORT (8888), HOST (127.0.0.1), MOCK_AI=1, AUTH_TEST_CERTS=<certs.json>, FIREBASE_EMULATORS=1; ./.env is read too.
 
 const http = require("http");
 const fs = require("fs");
@@ -20,6 +20,17 @@ function loadEnvFile(file) {
   }
 }
 loadEnvFile(path.join(ROOT, ".env"));
+
+// The functions accept the Auth emulator's unsigned tokens only when this flag is set, i.e. only under this server.
+process.env.JOBDESK_LOCAL_DEV = "1";
+// FIREBASE_EMULATORS=1: the app (opened with ?emulators=1) uses the local Firebase emulators and the
+// functions verify tokens of the emulator's demo project.
+if (process.env.FIREBASE_EMULATORS === "1") {
+  process.env.FIREBASE_AUTH_EMULATOR_HOST ||= "127.0.0.1:9099";
+  process.env.FIREBASE_PROJECT_ID ||= "demo-jobdesk2000";
+} else {
+  delete process.env.FIREBASE_AUTH_EMULATOR_HOST;
+}
 
 const PORT = Number(process.env.PORT) || 8888;
 const HOST = process.env.HOST || "127.0.0.1";

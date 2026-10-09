@@ -110,3 +110,25 @@ test("getUser throws when Google's certs cannot be fetched, so callers can answe
   stubFetch();
   assert.ok(await auth.getUser({ headers: { authorization: "Bearer " + signToken() } }), "recovers once Google answers");
 });
+
+// The Auth emulator's tokens are unsigned. They may only pass under the local dev server with the emulator switch.
+test("unsigned emulator tokens pass only with JOBDESK_LOCAL_DEV and FIREBASE_AUTH_EMULATOR_HOST together", async (t) => {
+  const unsigned = b64({ alg: "none", typ: "JWT" }) + "." + b64(claims()) + ".";
+  const saved = { dev: process.env.JOBDESK_LOCAL_DEV, host: process.env.FIREBASE_AUTH_EMULATOR_HOST };
+  t.after(() => {
+    for (const [name, value] of [["JOBDESK_LOCAL_DEV", saved.dev], ["FIREBASE_AUTH_EMULATOR_HOST", saved.host]]) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+  });
+  const set = (dev, host) => {
+    if (dev) process.env.JOBDESK_LOCAL_DEV = "1"; else delete process.env.JOBDESK_LOCAL_DEV;
+    if (host) process.env.FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:9099"; else delete process.env.FIREBASE_AUTH_EMULATOR_HOST;
+  };
+  set(false, true);
+  assert.equal(await verifyIdToken(unsigned), null, "emulator host alone (e.g. a stray Netlify env var) is not enough");
+  set(true, false);
+  assert.equal(await verifyIdToken(unsigned), null, "local dev alone is not enough");
+  set(true, true);
+  assert.deepEqual(await verifyIdToken(unsigned), { uid: "uid-1", email: "olena@example.com", emailVerified: true });
+  assert.equal(await verifyIdToken(b64({ alg: "none" }) + "." + b64(claims({ aud: "other-project" })) + "."), null, "claims are still checked");
+});

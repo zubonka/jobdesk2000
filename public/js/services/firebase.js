@@ -12,6 +12,19 @@ const CONFIG = {
 };
 const SDK = "https://www.gstatic.com/firebasejs/10.12.2/";
 
+// Local development: http://localhost:8888/?emulators=1 talks to the Firebase emulators
+// (docker compose --profile firebase up) instead of the real project. Remembered for the tab.
+const EMULATORS = (() => {
+  if (!["localhost", "127.0.0.1"].includes(location.hostname)) return false;
+  try {
+    if (new URLSearchParams(location.search).has("emulators")) sessionStorage.setItem("jd2000_emulators", "1");
+    return sessionStorage.getItem("jd2000_emulators") === "1";
+  } catch (e) {
+    return false;
+  }
+})();
+const EMULATOR_PROJECT = "demo-jobdesk2000";
+
 let loading = null;
 let loaded = null;
 
@@ -24,10 +37,15 @@ export function loadFirebase() {
         import(SDK + "firebase-auth.js"),
         import(SDK + "firebase-firestore.js"),
       ]);
-      const app = initializeApp(CONFIG);
+      const app = initializeApp(EMULATORS ? { ...CONFIG, projectId: EMULATOR_PROJECT, authDomain: "localhost" } : CONFIG);
       const auth = A.getAuth(app);
       auth.languageCode = "uk";
-      loaded = { A, F, auth, db: F.getFirestore(app) };
+      const db = F.getFirestore(app);
+      if (EMULATORS) {
+        A.connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+        F.connectFirestoreEmulator(db, "127.0.0.1", 8086);
+      }
+      loaded = { A, F, auth, db };
       return loaded;
     })().catch((err) => {
       console.warn("Firebase init failed:", err);

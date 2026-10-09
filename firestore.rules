@@ -1,0 +1,21 @@
+rules_version = '2';
+
+// The app keeps one document per user, users/<uid>, with two fields:
+// data (a JSON string of the synced localStorage keys) and updated (a timestamp in ms).
+// Deploy with: npx firebase-tools deploy --only firestore:rules --project jobdesk2000
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(["data", "updated"])
+        && request.resource.data.data is string
+        && request.resource.data.data.size() < 1000000
+        && request.resource.data.updated is number;
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

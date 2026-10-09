@@ -42,19 +42,28 @@ function validClaims(p) {
     (p.auth_time == null || p.auth_time <= now + CLOCK_SKEW);
 }
 
+// Local development only: the Firebase Auth emulator signs nothing (alg "none"). Such tokens count only under
+// scripts/dev-server.js (JOBDESK_LOCAL_DEV) with FIREBASE_AUTH_EMULATOR_HOST set, the switch the Admin SDK uses
+// too. Netlify sets neither, so production never accepts them.
+const emulatorTokensAllowed = () => process.env.JOBDESK_LOCAL_DEV === "1" && !!process.env.FIREBASE_AUTH_EMULATOR_HOST;
+
+const userOf = (p) => ({ uid: p.sub, email: p.email || "", emailVerified: !!p.email_verified });
+
 // Own keys only: a kid such as "constructor" must not pick up an Object.prototype member.
 const certFor = (certs, kid) => (Object.hasOwn(certs, kid) ? certs[kid] : null);
 
 // {uid, email, emailVerified} for a valid token, otherwise null
 async function verifyIdToken(token) {
   const t = decode(token);
-  if (!t || !t.header || t.header.alg !== "RS256" || !t.header.kid || !t.payload || !validClaims(t.payload)) return null;
+  if (!t || !t.header || !t.payload || !validClaims(t.payload)) return null;
+  if (t.header.alg === "none" && emulatorTokensAllowed()) return userOf(t.payload);
+  if (t.header.alg !== "RS256" || !t.header.kid) return null;
   let certs = await googleCerts(false);
   if (!certFor(certs, t.header.kid)) certs = await googleCerts(true);
   const pem = certFor(certs, t.header.kid);
   if (!pem) return null;
   const ok = crypto.verify("RSA-SHA256", Buffer.from(t.signed), crypto.createPublicKey(pem), Buffer.from(t.signature, "base64url"));
-  return ok ? { uid: t.payload.sub, email: t.payload.email || "", emailVerified: !!t.payload.email_verified } : null;
+  return ok ? userOf(t.payload) : null;
 }
 
 // null for a missing or invalid token. Throws only when Google's keys cannot be fetched.

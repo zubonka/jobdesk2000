@@ -1,6 +1,8 @@
 # docker compose up app                          dev server on http://localhost:8888 (mock AI without keys in .env)
 # docker compose run --rm test                   unit tests
 # docker compose --profile netlify run --rm netlify   offline Netlify build: bundles the functions with esbuild
+# FIREBASE_EMULATORS=1 docker compose --profile firebase up   app + Firebase Auth/Firestore emulators,
+#                                                  then open http://localhost:8888/?emulators=1 (UI on :4000)
 name: jobdesk2000
 
 services:
@@ -14,6 +16,8 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: "8888"
+      FIREBASE_EMULATORS: ${FIREBASE_EMULATORS:-0}
+      FIREBASE_AUTH_EMULATOR_HOST: firebase:9099
     env_file:
       - path: .env
         required: false
@@ -49,6 +53,19 @@ services:
     # a failed require inside netlify/ fails the esbuild step, so a green build proves the bundles resolve
     command: sh -c "npx --yes netlify-cli@27.8.1 build --offline && ls -l .netlify/functions"
     profiles: [netlify]
+
+  firebase:
+    build: docker/firebase
+    init: true
+    volumes:
+      - ./firebase.json:/app/firebase.json:ro
+      - ./firestore.rules:/app/firestore.rules:ro
+    ports:
+      # the browser talks to the emulators directly, so they are published on loopback
+      - "127.0.0.1:4000:4000"
+      - "127.0.0.1:8086:8086"
+      - "127.0.0.1:9099:9099"
+    profiles: [firebase]
 
 volumes:
   npm-cache:
