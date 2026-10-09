@@ -1,6 +1,7 @@
 // App-wide publish/subscribe. Event names in use:
 //   user       signed in, signed out, name or gender changed
-//   jobs       vacancy list or a vacancy field changed (detail: { type, id, key? })
+//   jobs       vacancy list or a vacancy field changed (detail: { type, id?, key? }); types: add, field, update,
+//              remove, restore (an undone remove), reset, import (from a backup), collapse, reload (from storage)
 //   cv         CV text changed
 //   fairy      fairy type, colours or name changed
 //   wallpaper  desktop wallpaper changed
@@ -8,7 +9,7 @@
 //   gate       a guest tried to open a members-only app (detail: app name)
 //   auth:open  someone asked for the sign-in dialog (detail: "login" | "register")
 //   account    the account button or start menu account item was clicked
-//   state      local data was replaced from the cloud; every module reloads from storage
+//   state      local data was replaced (from the cloud, another tab or a backup); every module reloads from storage
 //   firebase   Firebase finished loading
 
 const handlers = new Map();

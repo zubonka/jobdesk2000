@@ -12,9 +12,10 @@ import { initWindows, openWin, closeWin } from "./ui/windows.js";
 import { initIcons, reloadIcons } from "./ui/icons.js";
 import { initTaskbar } from "./ui/taskbar.js";
 import { initDialogs, maybeWelcome } from "./ui/dialogs.js";
-import { initClippy, greet, say, hide } from "./ui/clippy.js";
+import { initClippy, greet, say, hide, isTalking } from "./ui/clippy.js";
+import { initConfirm } from "./ui/confirm.js";
 import { initAuth } from "./services/auth.js";
-import { initVacancies } from "./apps/vacancies.js";
+import { initVacancies, remindDeadline, takeSharedLink } from "./apps/vacancies.js";
 import { initEditVacancy } from "./apps/edit-vacancy.js";
 import { initStats } from "./apps/stats.js";
 import { initMessenger } from "./apps/messenger.js";
@@ -28,6 +29,7 @@ initWindows();
 initIcons();
 initTaskbar();
 initDialogs();
+initConfirm();
 initClippy();
 
 initVacancies();
@@ -69,7 +71,9 @@ window.addEventListener("storage", (e) => {
 // Firebase (~175 KB) waits for the page to load; the desktop already renders from the local copy of the user.
 window.addEventListener("load", initAuth, { once: true });
 maybeWelcome();
+takeSharedLink();
 setTimeout(greet, 1000);
+setTimeout(() => { if (!isTalking()) remindDeadline(); }, 12000); // after the greeting has gone
 
 // Small handle for manual checks and browser tests.
 window.jobdesk = { openWin, closeWin, say, hide, emit };

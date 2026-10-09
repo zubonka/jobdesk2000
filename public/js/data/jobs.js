@@ -55,6 +55,11 @@ function fromInput(fields) {
   };
 }
 
+const str = (value) => (typeof value === "string" ? value : "");
+
+// A stored vacancy with its entry of the progress map.
+const withProgress = (job, p = {}) => ({ ...job, status: statusKeyOf(p.status), date: str(p.date), deadline: str(p.deadline), note: str(p.note) });
+
 export function loadJobs() {
   const list = getJSON(KEYS.jobs, []);
   const progress = getJSON(KEYS.progress, {}) || {};
@@ -66,8 +71,7 @@ export function loadJobs() {
     const job = fromStorage(raw);
     if (seen.has(job.id)) continue;
     seen.add(job.id);
-    const p = progress[job.id] || {};
-    jobs.push({ ...job, status: statusKeyOf(p.status), date: p.date || "", deadline: p.deadline || "", note: p.note || "" });
+    jobs.push(withProgress(job, progress[job.id]));
   }
 }
 
@@ -120,20 +124,61 @@ export function updateJob(id, fields) {
   return { job };
 }
 
+// Returns what restoreJob() needs to bring the vacancy back, or null when it is not listed.
 export function removeJob(id) {
-  const i = jobs.findIndex((j) => j.id === id);
-  if (i < 0) return false;
-  jobs.splice(i, 1);
+  const index = jobs.findIndex((j) => j.id === id);
+  if (index < 0) return null;
+  const [job] = jobs.splice(index, 1);
   save();
   emit("jobs", { type: "remove", id });
+  return { job, index };
+}
+
+// Undoes removeJob(): the vacancy returns to its place with its progress. False when it was added again meanwhile.
+export function restoreJob({ job, index }) {
+  if (getJob(job.id)) return false;
+  jobs.splice(Math.min(index, jobs.length), 0, job);
+  save();
+  emit("jobs", { type: "restore", id: job.id });
   return true;
 }
 
 // Clears statuses, application dates and notes; deadlines and the vacancies themselves stay.
+// Returns what restoreProgress() needs to undo it.
 export function resetProgress() {
+  const before = jobs.map(({ id, status, date, note }) => ({ id, status, date, note }));
   for (const j of jobs) Object.assign(j, { status: "not_applied", date: "", note: "" });
   save();
   emit("jobs", { type: "reset" });
+  return before;
+}
+
+export function restoreProgress(before) {
+  for (const { id, ...fields } of before) {
+    const job = getJob(id);
+    if (job) Object.assign(job, fields);
+  }
+  save();
+  emit("jobs", { type: "reset" });
+}
+
+// Adds the vacancies of a backup (stored format: list + progress map) that are not listed yet.
+// Vacancies already here keep their current state. Returns how many were added.
+export function importJobs(list, progress) {
+  const map = progress && typeof progress === "object" ? progress : {};
+  let added = 0;
+  for (const raw of Array.isArray(list) ? list : []) {
+    if (!raw || typeof raw !== "object") continue;
+    const job = fromStorage(raw);
+    if (getJob(job.id)) continue;
+    jobs.push(withProgress(job, map[job.id]));
+    added++;
+  }
+  if (added) {
+    save();
+    emit("jobs", { type: "import" });
+  }
+  return added;
 }
 
 export const isCollapsed = (id) => !!collapsed[id];

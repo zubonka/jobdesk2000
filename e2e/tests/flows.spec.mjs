@@ -1,7 +1,7 @@
 // User journeys, run on a desktop browser and on an iPhone 11 (see playwright.config.mjs).
 // The dev server answers the AI with a deterministic mock and signs people in through the Firebase emulators.
 import { test, expect } from "@playwright/test";
-import { seedStorage, openApp, openWindow, register, signIn, signOut, setMock, freshEmail, PASSWORD } from "./helpers.mjs";
+import { seedStorage, openApp, openWindow, register, signIn, signOut, setMock, freshEmail, confirmYes, PASSWORD } from "./helpers.mjs";
 
 const VACANCY_TEXT = "Acme Studio шукає Senior Graphic Designer. Повна зайнятість, віддалено. Зарплата 1500-2000$. Досвід 3+ роки у Figma.";
 const CV_TEXT = "Олена Тестенко. Графічна дизайнерка, 5 років брендингу: Figma, Illustrator, Photoshop. Айдентика для музичного лейблу.";
@@ -72,9 +72,13 @@ test("a guest adds vacancies by text, by link and by hand, edits, filters and re
   await openWindow(page, "vacancies");
   await expect(win.locator('textarea[data-k="note"]').first()).toHaveValue("HR: Олена, дзвінок у пʼятницю");
 
-  // removal asks first
-  page.once("dialog", (d) => d.accept());
+  // removal asks first, in the app's own dialog; "no" keeps the card
   await win.locator(".jobcard", { hasText: "Label Records" }).locator(".jdel").click();
+  await expect(page.locator("#confirm-text")).toHaveText("Видалити «Label Records — <img src=x onerror=\"window.__xss=1\">Motion Designer» зі списку?");
+  await page.keyboard.press("Escape");
+  await expect(win.locator(".jobcard")).toHaveCount(2);
+  await win.locator(".jobcard", { hasText: "Label Records" }).locator(".jdel").click();
+  await confirmYes(page);
   await expect(win.locator(".jobcard")).toHaveCount(1);
 });
 

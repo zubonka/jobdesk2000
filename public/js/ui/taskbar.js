@@ -48,6 +48,11 @@ export function initTaskbar() {
   byId("sm-auth").addEventListener("click", () => { setMenu(false); emit("account"); });
   byId("btn-account").addEventListener("click", () => emit("account"));
 
+  const showOnline = () => { byId("tb-offline").hidden = navigator.onLine; };
+  window.addEventListener("online", showOnline);
+  window.addEventListener("offline", showOnline);
+  showOnline();
+
   on("windows", renderTasks);
   on("user", renderAccount);
   renderTasks();

@@ -2,7 +2,7 @@
 // A window is <section class="win" id="win-<app>" data-app="<app>"> inside #desktop.
 
 import { byId, qsa } from "../core/dom.js";
-import { emit } from "../core/events.js";
+import { emit, on } from "../core/events.js";
 import { isAuthed } from "../data/user.js";
 
 // icon + label are what the taskbar shows; needsAuth apps send guests to the sign-up gate
@@ -175,5 +175,7 @@ export function initWindows() {
   for (const b of qsa("[data-close]")) b.addEventListener("click", (e) => { e.stopPropagation(); closeWin(b.dataset.close); });
   for (const b of qsa("[data-min]")) b.addEventListener("click", (e) => { e.stopPropagation(); closeWin(b.dataset.min); });
   byId("btn-tile").addEventListener("click", () => setTileMode(!tileMode));
+  // phones lay out the fairy differently while a window covers the screen (app.css, body.win-open)
+  on("windows", () => document.body.classList.toggle("win-open", APP_NAMES.some(isOpen)));
   window.addEventListener("resize", () => qsa(".win[data-app].open").forEach(keepInView));
 }

@@ -9,6 +9,7 @@ import {
 } from "../services/auth.js";
 import { registerDialog, openDialog, closeDialog, isDialogOpen } from "../ui/dialogs.js";
 import { say } from "../ui/clippy.js";
+import { confirmDialog } from "../ui/confirm.js";
 import { POSE } from "../fairy/render.js";
 
 const DIALOG = "auth-overlay";
@@ -123,9 +124,9 @@ async function forgotPassword() {
   }
 }
 
-function account() {
+async function account() {
   if (!isAuthed()) { openAuth("login"); return; }
-  if (confirm("Вийти з акаунта «" + userName() + "»?")) signOutUser();
+  if (await confirmDialog("Вийти з акаунта «" + userName() + "»?")) signOutUser();
 }
 
 export function initAuthDialog() {

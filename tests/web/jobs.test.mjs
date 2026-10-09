@@ -181,3 +181,65 @@ test("links saved by the original app without a scheme stay usable; unsafe ones 
   });
   assert.deepEqual(jobs.allJobs().map((j) => j.url), ["https://djinni.co/jobs/123-designer", "#", "https://work.ua/jobs/1/"]);
 });
+
+test("an undone removal puts the vacancy back in its place with its progress", () => {
+  for (const title of ["One", "Two", "Three"]) jobs.addJob({ company: "Acme", title });
+  jobs.setJobField("Acme|Two", "status", "interview1");
+  jobs.setJobField("Acme|Two", "note", "HR: Оля");
+  jobs.toggleCollapsed("Acme|Two");
+
+  const removed = jobs.removeJob("Acme|Two");
+  assert.deepEqual(jobs.allJobs().map((j) => j.title), ["One", "Three"]);
+  assert.equal(jobs.removeJob("Acme|Two"), null);
+
+  const events = [];
+  const off = on("jobs", (detail) => events.push(detail));
+  assert.equal(jobs.restoreJob(removed), true);
+  off();
+  assert.deepEqual(events, [{ type: "restore", id: "Acme|Two" }]);
+  assert.deepEqual(jobs.allJobs().map((j) => j.title), ["One", "Two", "Three"]);
+  assert.equal(storedJSON(KEYS.progress)["Acme|Two"].status, "Перша співбесіда");
+  assert.equal(jobs.getJob("Acme|Two").note, "HR: Оля");
+  assert.ok(jobs.isCollapsed("Acme|Two"));
+});
+
+test("an undone removal never duplicates a vacancy that was added again", () => {
+  jobs.addJob({ company: "Acme", title: "Designer" });
+  const removed = jobs.removeJob("Acme|Designer");
+  jobs.addJob({ company: "Acme", title: "Designer" });
+  assert.equal(jobs.restoreJob(removed), false);
+  assert.equal(jobs.allJobs().length, 1);
+});
+
+test("an undone reset brings back statuses, dates and notes", () => {
+  const { id } = jobs.addJob({ company: "Acme", title: "Designer" });
+  jobs.setJobField(id, "status", "offer");
+  jobs.setJobField(id, "date", "2026-09-01");
+  jobs.setJobField(id, "note", "HR");
+  const before = jobs.resetProgress();
+  assert.equal(jobs.getJob(id).status, "not_applied");
+  jobs.restoreProgress(before);
+  assert.deepEqual(storedJSON(KEYS.progress)[id], { status: "Оффер", date: "2026-09-01", deadline: "", note: "HR" });
+});
+
+test("importJobs adds only the missing vacancies and keeps the ones already here as they are", () => {
+  const { id } = jobs.addJob({ company: "Acme", title: "Designer" });
+  jobs.setJobField(id, "status", "offer");
+  const backup = [
+    { prio: "Подумати", company: "Acme", title: "Designer", field: "old copy", emp: NONE, loc: NONE, salary: NONE, url: "#" },
+    { prio: "100% Податися", company: "Beta", title: "Illustrator", field: "Арт", emp: NONE, loc: NONE, salary: NONE, url: "beta.example/jobs" },
+    null, "junk", { prio: "Податися", company: "Beta", title: "Illustrator" },
+  ];
+  const progress = {
+    "Acme|Designer": { status: "Відмова", date: "", deadline: "", note: "" },
+    "Beta|Illustrator": { status: "Подалася", date: "2026-10-01", deadline: 20261010, note: { evil: true } },
+  };
+  assert.equal(jobs.importJobs(backup, progress), 1);
+  assert.equal(jobs.getJob(id).status, "offer");
+  assert.equal(jobs.getJob(id).field, NONE);
+  const beta = jobs.getJob("Beta|Illustrator");
+  assert.deepEqual([beta.prio, beta.status, beta.date, beta.deadline, beta.note, beta.url],
+    ["100% Податися", "applied", "2026-10-01", "", "", "https://beta.example/jobs"]);
+  assert.equal(jobs.importJobs(backup, progress), 0);
+  assert.equal(jobs.importJobs("not a list", null), 0);
+});

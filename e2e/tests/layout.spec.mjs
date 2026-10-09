@@ -46,6 +46,11 @@ test.describe("@layout", () => {
     await check(page, testInfo, "05-edit-dialog");
     await page.keyboard.press("Escape");
 
+    await page.locator(".jdel").first().click();
+    await expect(page.locator("#confirm-overlay")).toHaveClass(/open/);
+    await check(page, testInfo, "05b-confirm-dialog");
+    await page.keyboard.press("Escape");
+
     await page.locator("#btn-paste").click();
     await check(page, testInfo, "06-paste-box");
     await closeWindow(page, "vacancies");

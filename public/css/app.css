@@ -145,9 +145,10 @@ body.tile-mode #tilewrap{display:grid; grid-template-columns:repeat(auto-fit,min
 .sm-item img{width:1.25rem; height:1.25rem; image-rendering:pixelated; vertical-align:-.25rem; margin-right:.25rem;}
 
 /* ===== FORM ELEMENTS ===== */
-select, input[type=text], input[type=email], input[type=password], input[type=url], input[type=date], textarea{
+select, input[type=text], input[type=email], input[type=password], input[type=url], input[type=date], input[type=search], textarea{
   background:var(--field); color:var(--ink); border:.125rem solid var(--field-br); border-radius:.375rem; padding:.4375rem .5625rem; font-size:1rem;}
 select:focus, input:focus, textarea:focus{outline:none; border-color:var(--accent);}
+input[type=search]{-webkit-appearance:none; appearance:none;}
 .btn{display:inline-block; font-family:'VT323',monospace; font-size:1rem; color:#0a0618; background:var(--accent); border:.125rem solid #fff; border-radius:.4375rem;
   padding:.4375rem .875rem; cursor:pointer; letter-spacing:.0312rem; text-decoration:none; text-align:center;}
 .btn:hover{filter:brightness(1.1);}
@@ -211,7 +212,8 @@ label.fl{font-size:.875rem; color:var(--dim); display:block; margin-bottom:.25re
 #add-url{flex:1; min-width:11.25rem;}
 #a-paste{resize:vertical;}
 .filters{display:flex; flex-wrap:wrap; gap:.375rem; margin-bottom:.625rem; align-items:center;}
-.empty{text-align:center; padding:1.25rem;}
+.f-search{flex:1 1 100%; min-width:0;}
+.empty{text-align:center; padding:1.25rem; line-height:1.45;}
 .gh{font-size:1rem; color:var(--accent); margin:.875rem 0 .5rem; letter-spacing:.0625rem;}
 .jobcard{position:relative; border:.125rem solid var(--field-br); border-radius:.625rem; padding:.6875rem; margin-bottom:.625rem; background:var(--field);}
 .jobcard .jhead{display:flex; justify-content:space-between; align-items:center; gap:.375rem;}
@@ -222,6 +224,9 @@ label.fl{font-size:.875rem; color:var(--dim); display:block; margin-bottom:.25re
 .jedit{color:var(--accent); font-size:1.0625rem;}
 .jdel{color:var(--accent2); font-size:1.125rem;}
 .jtag{display:inline-block; font-size:.8125rem; color:var(--dim); border:.0625rem solid var(--field-br); border-radius:.625rem; padding:.0625rem .4375rem; margin:.25rem .25rem 0 0;}
+.jtag.dl.soon{color:var(--ink); border-color:var(--warn);}
+.jtag.dl.hot{color:#2a1a00; background:var(--warn); border-color:var(--warn);}
+.jtag.dl.late{color:#fff; background:var(--accent2); border-color:var(--accent2);}
 .jrow{display:flex; gap:.375rem; align-items:center; margin-top:.5rem;}
 .jrow label{font-size:.75rem; color:var(--dim); width:3.75rem; flex:none;}
 .jrow input, .jrow textarea{flex:1; font-size:.875rem; padding:.3125rem .4375rem;}
@@ -306,6 +311,24 @@ h3.wh.h16{font-size:1rem;}
 .welcome-item .wt{font-size:.9375rem; line-height:1.4;}
 .welcome-text{font-size:1rem; line-height:1.55; margin-bottom:.75rem;}
 
+/* ===== CONFIRM, TOAST, OFFLINE BADGE ===== */
+#confirm-overlay{z-index:10500;}
+#confirm-overlay .dialog{width:23.75rem;}
+#confirm-fairy{width:5.5rem; height:5.5rem; margin:0 auto .5rem;}
+.confirm-text{font-size:1.0625rem; line-height:1.45; margin-bottom:.875rem;}
+.toast{position:fixed; left:50%; bottom:calc(var(--taskbar-h) + var(--safe-b) + .75rem); transform:translateX(-50%); z-index:9600;
+  display:flex; align-items:center; gap:.75rem; max-width:min(32rem, calc(100vw - 1.5rem)); padding:.625rem .875rem;
+  background:var(--win-bg); color:var(--ink); border:.125rem solid var(--accent); border-radius:.625rem; box-shadow:.25rem .25rem 0 var(--shadow);
+  font-size:1rem; line-height:1.35; animation:toast-in .25s ease-out;}
+.toast.leaving{animation:toast-out .25s ease-in forwards;}
+@keyframes toast-in{from{opacity:0; transform:translate(-50%, .75rem);} to{opacity:1; transform:translate(-50%, 0);}}
+@keyframes toast-out{to{opacity:0; transform:translate(-50%, .75rem);}}
+.toast-act{flex:none; padding:.25rem .625rem; border:.125rem solid var(--accent); border-radius:.4375rem; color:var(--accent); font-size:.9375rem;}
+.toast-act:hover{background:var(--accent); color:var(--win-bg);}
+.confetti{position:fixed; inset:0; pointer-events:none; z-index:11000; overflow:hidden;}
+.confetti span{position:absolute; font-size:1.375rem; line-height:1; will-change:transform,opacity;}
+.tb-offline{font-size:.875rem; color:#fff; background:var(--accent2); border:1px solid rgba(255,255,255,.4); border-radius:.375rem; padding:.25rem .5rem; white-space:nowrap;}
+
 /* ===== CLIPPY FAIRY ===== */
 #clippy{position:fixed; right:calc(1rem + var(--safe-r)); bottom:calc(3.75rem + var(--safe-b)); z-index:9500; width:10.625rem; display:none;}
 #clippy.show{display:block; animation:clippy-in .5s cubic-bezier(.2,1.2,.4,1);}
@@ -317,7 +340,7 @@ h3.wh.h16{font-size:1rem;}
 #clippy .bubble::after{content:""; position:absolute; right:2.5rem; bottom:-.5625rem; width:.875rem; height:.875rem; background:var(--win-bg);
   border-right:.125rem solid var(--win-border); border-bottom:.125rem solid var(--win-border); transform:rotate(45deg);}
 #clippy .bubble .cx{position:absolute; top:.1875rem; right:.4375rem; cursor:pointer; color:var(--accent2); font-size:1rem;}
-#clippy-fairy{width:8.75rem; height:8.75rem; margin-left:auto; animation:float 4s ease-in-out infinite;}
+#clippy-fairy{width:8.75rem; height:8.75rem; margin-left:auto; animation:float 4s ease-in-out infinite; pointer-events:none;} /* taps go through her to the window below */
 @keyframes float{0%,100%{transform:translateY(0) rotate(-2deg);}50%{transform:translateY(-.5rem) rotate(2deg);}}
 #clippy-fairy svg{width:100%; height:100%; display:block; filter:drop-shadow(.125rem .25rem .375rem rgba(0,0,0,.4));}
 
@@ -426,6 +449,17 @@ h3.wh.h16{font-size:1rem;}
   .overlay{padding:1.25rem .625rem .625rem; align-items:flex-start; overflow-y:auto;}
 
   #clippy{right:calc(.375rem + var(--safe-r)); bottom:calc(3.25rem + var(--safe-b)); max-width:78vw;}
+  /* a window is open: the fairy talks from a strip above the taskbar and the window gets shorter, so she never
+     covers a field or a button (--clippy-h is measured by ui/clippy.js) */
+  body.win-open #clippy{left:calc(.375rem + var(--safe-l)); right:calc(.375rem + var(--safe-r)); bottom:calc(var(--taskbar-h) + var(--safe-b) + .25rem);
+    width:auto; max-width:none; flex-direction:row-reverse; align-items:center; gap:.5rem;}
+  body.win-open #clippy.show{display:flex;}
+  body.win-open #clippy .bubble{flex:1; margin:0;}
+  body.win-open #clippy .bubble::after{display:none;}
+  body.win-open #clippy #clippy-fairy{width:3.25rem !important; height:3.25rem !important; flex:none; margin:0;}
+  body.win-open.clippy-on .win{bottom:calc(var(--taskbar-h) + var(--safe-b) + var(--clippy-h, 0px) + .5rem) !important;}
+  .toast{bottom:calc(var(--taskbar-h) + var(--safe-b) + .5rem);}
+  body.win-open.clippy-on .toast{bottom:calc(var(--taskbar-h) + var(--safe-b) + var(--clippy-h, 0px) + .75rem);}
   #clippy #clippy-fairy{width:5.125rem !important; height:5.125rem !important;}
   #clippy .bubble{font-size:.875rem; padding:.5625rem .6875rem;}
 

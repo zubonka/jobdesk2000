@@ -1,24 +1,39 @@
-// Vacancies window: adding vacancies (by link, from pasted text or by hand), the filters and the board of cards.
+// Vacancies window: adding vacancies (by link, from pasted text or by hand), search and filters, and the board of cards.
 
-import { byId, html, raw, setHtml, safeUrl } from "../core/dom.js";
+import { byId, html, raw, setHtml, safeUrl, todayISO } from "../core/dom.js";
 import { on } from "../core/events.js";
-import { PRIORITIES, NONE, allJobs, getJob, addJob, setJobField, removeJob, resetProgress, isCollapsed, toggleCollapsed } from "../data/jobs.js";
+import {
+  PRIORITIES, NONE, allJobs, getJob, addJob, setJobField, removeJob, restoreJob, resetProgress, restoreProgress,
+  isCollapsed, toggleCollapsed, normalizeUrl,
+} from "../data/jobs.js";
 import { STATUS_KEYS, statusLabel } from "../data/statuses.js";
 import { gender, isAuthed } from "../data/user.js";
 import { hasCV, persona } from "../data/profile.js";
+import { deadlineIn, daysText } from "../data/timeline.js";
 import { detectSpecialty } from "../content/phrases.js";
 import { analyzeVacancy, analyzeProfile, MIN_VACANCY_TEXT } from "../services/api.js";
 import { say, reactToStatus } from "../ui/clippy.js";
 import { POSE } from "../fairy/render.js";
 import { openEditVacancy, openNewVacancy } from "./edit-vacancy.js";
+import { confirmDialog } from "../ui/confirm.js";
+import { toast } from "../ui/toast.js";
+import { confetti } from "../ui/confetti.js";
+import { openWin, isFocused } from "../ui/windows.js";
 
 // filter select id and the job property it compares
 const FILTERS = [["f-prio", "prio"], ["f-field", "field"], ["f-emp", "emp"], ["f-status", "status"]];
+// what the search box looks through
+const SEARCH_FIELDS = ["title", "company", "field", "loc", "salary", "note"];
+// a deadline gets a badge on its card from this many days before it
+const DEADLINE_SOON_DAYS = 14;
+// and the fairy mentions it when the app opens from this many days before it
+const DEADLINE_REMIND_DAYS = 3;
+const UNDO = "↶ Повернути";
 const TAGS = [["field", "◈"], ["emp", "⧗"], ["loc", "📍"], ["salary", "₴"]];
 const LINK_LABELS = { not_applied: "Податися ↗", reject: "Переглянути ↗", offer: "Відкрити ↗" };
 // "jobs" changes that alter what the board shows. Date and note edits are not among them,
 // so a card is never redrawn under the user's cursor while they type.
-const BOARD_CHANGES = ["add", "remove", "update", "reload", "reset", "collapse"];
+const BOARD_CHANGES = ["add", "remove", "restore", "update", "reload", "reset", "import", "collapse"];
 const BOARD_FIELDS = ["status", "prio"];
 
 const setMsg = (text) => { byId("add-url-msg").textContent = text; };
@@ -42,13 +57,18 @@ function fillFilters() {
   fillSelect(byId("f-status"), "Всі статуси", STATUS_KEYS.map((key) => [key, statusLabel(key, g)]));
 }
 
+const lower = (text) => text.toLocaleLowerCase("uk");
+
 function visibleJobs() {
   const active = FILTERS.map(([id, key]) => [key, byId(id).value]).filter(([, value]) => value);
-  return allJobs().filter((job) => active.every(([key, value]) => job[key] === value));
+  const query = lower(byId("f-search").value.trim());
+  const found = (job) => !query || SEARCH_FIELDS.some((key) => lower(job[key]).includes(query));
+  return allJobs().filter((job) => active.every(([key, value]) => job[key] === value) && found(job));
 }
 
 function resetFilters() {
   for (const [id] of FILTERS) byId(id).value = "";
+  byId("f-search").value = "";
   renderBoard();
 }
 
@@ -79,12 +99,23 @@ function cardFoot(job, g) {
   </div>`;
 }
 
+// "⏳ ще 3 дні" on the card while the deadline is near, louder on its last day and once it has passed
+function deadlineBadge(job) {
+  const days = deadlineIn(job, todayISO());
+  if (days === null || days > DEADLINE_SOON_DAYS) return "";
+  const [level, text] = days < 0 ? ["late", "дедлайн минув"]
+    : days === 0 ? ["hot", "дедлайн сьогодні!"]
+    : days === 1 ? ["hot", "дедлайн завтра"]
+    : ["soon", "до дедлайну " + daysText(days)];
+  return html`<span class="jtag dl ${level}">⏳ ${text}</span>`;
+}
+
 function card(job, g) {
   const folded = isCollapsed(job.id);
   const tags = TAGS.filter(([key]) => job[key] !== NONE).map(([key, icon]) => html`<span class="jtag">${icon} ${job[key]}</span>`);
   return html`<div class="jobcard">
     ${cardHead(job, folded)}
-    <div class="jt">${job.title}</div><div class="jc">${job.company}</div><div>${tags}</div>
+    <div class="jt">${job.title}</div><div class="jc">${job.company}</div><div>${tags}<span class="dl-slot">${deadlineBadge(job)}</span></div>
     ${folded ? "" : cardDetails(job)}
     ${cardFoot(job, g)}
   </div>`;
@@ -93,9 +124,12 @@ function card(job, g) {
 function renderBoard() {
   const jobs = visibleJobs(), g = gender();
   const groups = PRIORITIES.map((prio) => [prio, jobs.filter((job) => job.prio === prio)]).filter(([, list]) => list.length);
+  const empty = allJobs().length
+    ? html`<div class="muted empty">Нічого не знайдено</div>`
+    : html`<div class="muted empty">Тут поки порожньо ✦ Встав посилання чи текст вакансії вгорі або додай її вручну, і вона зʼявиться тут.</div>`;
   setHtml(byId("board"), groups.length
     ? html`${groups.map(([prio, list]) => html`<div class="gh">✦ ${prio} [${list.length}]</div>${list.map((job) => card(job, g))}`)}`
-    : html`<div class="muted empty">Нічого не знайдено</div>`);
+    : empty);
 }
 
 function refresh() {
@@ -103,17 +137,18 @@ function refresh() {
   renderBoard();
 }
 
-function confirmRemove(id) {
+// Both answer with a notice that can undo them for a few seconds; guests get it too.
+async function confirmRemove(id) {
   const job = getJob(id);
-  if (!job || !confirm("Видалити «" + job.company + " — " + job.title + "» зі списку?")) return;
-  removeJob(id);
-  say("Вакансію прибрано ✦", POSE.idle, 5000);
+  if (!job || !(await confirmDialog("Видалити «" + job.company + " — " + job.title + "» зі списку?"))) return;
+  const removed = removeJob(id);
+  if (removed) toast("Вакансію прибрано ✦", { action: UNDO, onAction: () => restoreJob(removed) });
 }
 
-function clearProgress() {
-  if (!confirm("Обнулити всі статуси, дати й нотатки?")) return;
-  resetProgress();
-  say("Чистий старт ✦ летимо спочатку!", POSE.idle, 8000);
+async function clearProgress() {
+  if (!(await confirmDialog("Обнулити всі статуси, дати й нотатки?"))) return;
+  const before = resetProgress();
+  toast("Чистий старт ✦ летимо спочатку!", { action: UNDO, onAction: () => restoreProgress(before), ms: 8000 });
 }
 
 // prio and status selects
@@ -121,14 +156,20 @@ function onBoardChange(e) {
   const el = e.target;
   if (!el.matches("select.js-f")) return;
   const { id, k } = el.dataset, value = el.value;
+  const from = el.getBoundingClientRect(); // the board is redrawn by the change below
   setJobField(id, k, value);
-  if (k === "status") reactToStatus(value);
+  if (k !== "status") return;
+  if (value === "offer") confetti(from.left + from.width / 2, from.top + from.height / 2);
+  reactToStatus(value);
 }
 
 // date, deadline and note; selects fire "input" too, so they are left to onBoardChange
 function onBoardInput(e) {
   const el = e.target;
-  if (el.matches("input.js-f, textarea.js-f")) setJobField(el.dataset.id, el.dataset.k, el.value);
+  if (!el.matches("input.js-f, textarea.js-f")) return;
+  const job = setJobField(el.dataset.id, el.dataset.k, el.value);
+  // the card is not redrawn while the user types, so only its deadline badge follows
+  if (job && el.dataset.k === "deadline") setHtml(el.closest(".jobcard").querySelector(".dl-slot"), deadlineBadge(job));
 }
 
 function onBoardClick(e) {
@@ -214,12 +255,53 @@ function onJobsChange({ type, id, key }) {
   if (BOARD_CHANGES.includes(type) || (type === "field" && BOARD_FIELDS.includes(key))) refresh();
 }
 
+const jobLabel = (job) => (job.company !== NONE ? job.company + " — " + job.title : job.title);
+
+// When the app opens, the fairy points at the nearest deadline of the next few days.
+export function remindDeadline() {
+  const today = todayISO();
+  const next = allJobs()
+    .map((job) => ({ job, days: deadlineIn(job, today) }))
+    .filter(({ days }) => days !== null && days >= 0 && days <= DEADLINE_REMIND_DAYS)
+    .sort((a, b) => a.days - b.days)[0];
+  if (!next) return;
+  const when = next.days === 0 ? "Сьогодні" : next.days === 1 ? "Завтра" : "За " + daysText(next.days);
+  say("⏳ " + when + " дедлайн: «" + jobLabel(next.job) + "» ✦ не проґав!", POSE.idle, 10000);
+}
+
+const firstLink = (text) => (String(text || "").match(/https?:\/\/[^\s<>"']+/i) || [""])[0];
+
+// Another app can hand a vacancy over with a link: ?add=<vacancy url> (Балувана Валя), or ?url= / ?text= from
+// a phone's share sheet (site.webmanifest share_target). The link waits in the field; analysing it is one tap.
+export function takeSharedLink() {
+  const params = new URLSearchParams(window.location.search);
+  if (!["add", "url", "text"].some((name) => params.has(name))) return;
+  const add = normalizeUrl(params.get("add"));
+  const link = (add !== "#" && add) || firstLink(params.get("url")) || firstLink(params.get("text"));
+  window.history.replaceState(null, "", window.location.pathname + window.location.hash); // a reload must not bring it back
+  if (!link) return;
+  openWin("vacancies");
+  byId("add-url").value = link;
+  setMsg("Посилання вже тут ✦ натисни «✦ Аналіз», і фея розбере вакансію.");
+  byId("add-url").focus();
+}
+
+// "/" jumps to the search box while the vacancies window is in front
+function onShortcut(e) {
+  if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey || !isFocused("vacancies")) return;
+  if (e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable]")) return;
+  e.preventDefault();
+  byId("f-search").focus();
+}
+
 export function initVacancies() {
   const board = byId("board");
   board.addEventListener("change", onBoardChange);
   board.addEventListener("input", onBoardInput);
   board.addEventListener("click", onBoardClick);
   for (const [id] of FILTERS) byId(id).addEventListener("change", renderBoard);
+  byId("f-search").addEventListener("input", renderBoard);
+  document.addEventListener("keydown", onShortcut);
   byId("btn-reset").addEventListener("click", resetFilters);
   byId("btn-clear").addEventListener("click", clearProgress);
 

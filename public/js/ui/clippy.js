@@ -33,14 +33,20 @@ export function say(message, nextPose = POSE.idle, ms = 9000) {
   pose = nextPose;
   paint();
   el.classList.add("show");
+  document.body.classList.add("clippy-on");
   clearTimeout(hideTimer);
   hideTimer = setTimeout(hide, ms);
 }
 
+export const isTalking = () => box().classList.contains("show");
+
 export function hide() {
   const el = box();
   el.classList.add("leaving");
-  setTimeout(() => el.classList.remove("show", "leaving"), 480);
+  setTimeout(() => {
+    el.classList.remove("show", "leaving");
+    document.body.classList.remove("clippy-on");
+  }, 480);
 }
 
 export function reactToStatus(key) {
@@ -78,6 +84,8 @@ export function greet() {
 
 export function initClippy() {
   byId("clippy-x").addEventListener("click", hide);
+  // phones keep windows clear of the fairy; they need her current height for that
+  new ResizeObserver(() => document.documentElement.style.setProperty("--clippy-h", box().offsetHeight + "px")).observe(box());
   on("fairy", () => { if (box().classList.contains("show")) paint(); });
   on("user", () => { if (!isAuthed() && box().classList.contains("show")) hide(); });
   scheduleIdle();

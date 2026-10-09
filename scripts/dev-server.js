@@ -4,6 +4,7 @@
 // Env: PORT (8888), HOST (127.0.0.1), MOCK_AI=1, AUTH_TEST_CERTS=<certs.json>, FIREBASE_EMULATORS=1; ./.env is read too.
 
 const http = require("http");
+const { AsyncLocalStorage } = require("async_hooks");
 const fs = require("fs");
 const path = require("path");
 
@@ -40,6 +41,9 @@ const MOCK = process.env.MOCK_AI === "1" || !(process.env.GEMINI_API_KEY || proc
 const MOCK_MODES = ["ok", "busy", "slow", "empty", "truncated"];
 const SLOW_MS = 6000;
 let mockMode = "ok";
+// A "jd_mock" cookie overrides the mode for that browser only, so parallel tests do not disturb each other.
+const requestMock = new AsyncLocalStorage();
+const currentMode = () => requestMock.getStore() || mockMode;
 
 if (MOCK) {
   // the functions refuse to run without keys; these never leave the process because fetch is intercepted
@@ -80,15 +84,16 @@ const jsonResponse = (status, data) => new Response(JSON.stringify(data), { stat
 
 // { text, truncated } for the current mode; "busy" is answered before this by each engine
 async function mockAnswer(kind, prompt) {
-  if (mockMode === "slow") await sleep(SLOW_MS);
-  if (mockMode === "empty") return { text: "", truncated: false };
+  const mode = currentMode();
+  if (mode === "slow") await sleep(SLOW_MS);
+  if (mode === "empty") return { text: "", truncated: false };
   const text = MOCK_ANSWERS[kind](prompt);
-  if (mockMode === "truncated") return { text: text.slice(0, Math.floor(text.length * 0.6)), truncated: true };
+  if (mode === "truncated") return { text: text.slice(0, Math.floor(text.length * 0.6)), truncated: true };
   return { text, truncated: false };
 }
 
 async function mockGemini(url, body) {
-  if (mockMode === "busy") return jsonResponse(503, { error: { code: 503, message: "The model is overloaded. Please try again later." } });
+  if (currentMode() === "busy") return jsonResponse(503, { error: { code: 503, message: "The model is overloaded. Please try again later." } });
   const prompt = body.contents.flatMap((c) => c.parts).map((p) => p.text || "").join("\n");
   const props = body.generationConfig?.responseSchema?.properties || {};
   const kind = props.company ? "vacancy" : props.role ? "profile" : "letter";
@@ -98,7 +103,7 @@ async function mockGemini(url, body) {
 }
 
 async function mockGroq(body) {
-  if (mockMode === "busy") return jsonResponse(429, { error: { message: "Rate limit reached" } });
+  if (currentMode() === "busy") return jsonResponse(429, { error: { message: "Rate limit reached" } });
   const prompt = body.messages.filter((m) => m.role === "user").map((m) => m.content).join("\n");
   const kind = body.response_format ? (/"company"/.test(prompt) ? "vacancy" : "profile") : "letter";
   const { text, truncated } = await mockAnswer(kind, prompt);
@@ -219,8 +224,9 @@ async function runFunction(name, req, res, url) {
     isBase64Encoded: false,
   };
   const started = Date.now();
-  const result = await invoke(file, event);
-  console.log(`${new Date().toLocaleTimeString("en-GB")} ${req.method} ${name} -> ${result.statusCode} in ${Date.now() - started} ms${MOCK ? ` [mock ${mockMode}]` : ""}`);
+  const cookieMode = (/(?:^|;\s*)jd_mock=(\w+)/.exec(req.headers.cookie || "") || [])[1];
+  const result = await requestMock.run(MOCK_MODES.includes(cookieMode) ? cookieMode : undefined, () => invoke(file, event));
+  console.log(`${new Date().toLocaleTimeString("en-GB")} ${req.method} ${name} -> ${result.statusCode} in ${Date.now() - started} ms${MOCK ? ` [mock ${MOCK_MODES.includes(cookieMode) ? cookieMode : mockMode}]` : ""}`);
   res.writeHead(result.statusCode, result.headers || {});
   res.end(result.body || "");
 }

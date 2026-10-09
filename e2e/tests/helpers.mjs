@@ -75,10 +75,16 @@ export async function signIn(page, email) {
   await expect(dialog).not.toHaveClass(/open/);
 }
 
+// Answers the app's own confirmation dialog.
+export async function confirmYes(page) {
+  await expect(page.locator("#confirm-overlay")).toHaveClass(/open/);
+  await page.locator("#confirm-ok").click();
+}
+
 // Signs out through the account button and accepts the confirmation.
 export async function signOut(page) {
-  page.once("dialog", (d) => d.accept());
-  await Promise.all([page.waitForEvent("load"), page.locator("#btn-account").click()]);
+  await page.locator("#btn-account").click();
+  await Promise.all([page.waitForEvent("load"), confirmYes(page)]);
   await expect(page.locator("#acc-label")).toHaveText("Гість");
 }
 
@@ -129,6 +135,29 @@ export function layoutProblems(page, { touch = false } = {}) {
         if (touchDevice && el.matches("button, a.btn, select, input:not([type=color]):not([type=file]), textarea, .pal-btn")) {
           if (r.height < 30 || r.width < 30) problems.push(`${name(el)} is ${Math.round(r.width)}x${Math.round(r.height)}, small for a finger`);
         }
+      }
+    }
+
+    // On touch screens the fairy's speech bubble must never sit on top of a control of an open window.
+    // (Her figure lets taps through, see #clippy-fairy in app.css.) A control counts only with the part of it
+    // that is on screen: the parts scrolled out of a window body are hidden, whatever their rectangle says.
+    const onScreen = (el) => {
+      let r = el.getBoundingClientRect();
+      let box = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+      for (let p = el.parentElement; p && box.right > box.left && box.bottom > box.top; p = p.parentElement) {
+        if (getComputedStyle(p).overflow === "visible") continue;
+        r = p.getBoundingClientRect();
+        box = { left: Math.max(box.left, r.left), top: Math.max(box.top, r.top), right: Math.min(box.right, r.right), bottom: Math.min(box.bottom, r.bottom) };
+      }
+      return box;
+    };
+    const bubbles = [...document.querySelectorAll("#clippy.show .bubble")].filter(visible).map((el) => el.getBoundingClientRect());
+    if (touchDevice && bubbles.length) {
+      for (const el of document.querySelectorAll(".win.open button, .win.open input, .win.open select, .win.open textarea, .win.open a")) {
+        if (!visible(el)) continue;
+        const r = onScreen(el);
+        const covered = bubbles.some((f) => Math.min(f.right, r.right) - Math.max(f.left, r.left) > 2 && Math.min(f.bottom, r.bottom) - Math.max(f.top, r.top) > 2);
+        if (covered) problems.push(`the fairy covers ${name(el)}`);
       }
     }
 

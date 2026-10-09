@@ -189,6 +189,7 @@
         <div id="add-url-msg" class="muted msg mt6" aria-live="polite"></div>
       </div>
       <div class="filters">
+        <input type="search" id="f-search" class="f-search" placeholder="🔍 Пошук: посада, компанія, нотатки..." title="Клавіша / відкриває пошук" aria-label="Пошук вакансій" autocomplete="off">
         <select id="f-prio" aria-label="Пріоритет"><option value="">Всі пріоритети</option><option>100% Податися</option><option>Податися</option><option>Подумати</option></select>
         <select id="f-field" aria-label="Галузь"></select>
         <select id="f-emp" aria-label="Зайнятість"></select>
@@ -295,6 +296,24 @@
 
 <!-- CLIPPY -->
 <aside id="clippy" aria-live="polite"><div class="bubble"><button type="button" class="ui cx" id="clippy-x" aria-label="Закрити">✕</button><span id="clippy-say"></span></div><div id="clippy-fairy"></div></aside>
+
+<!-- toasts: short notices above the taskbar -->
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<!-- CONFIRM (replaces the browser's confirm()) -->
+<div id="confirm-overlay" class="overlay" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+  <div class="win open dialog">
+    <div class="win-head"><span class="ic"></span><span class="ti" id="confirm-title">✦ JobDesk 2000</span><span class="win-btns"><button type="button" class="ui win-btn close" id="confirm-close" aria-label="Закрити">✕</button></span></div>
+    <div class="win-body center">
+      <div id="confirm-fairy"></div>
+      <p class="confirm-text" id="confirm-text"></p>
+      <div class="row">
+        <button type="button" class="btn ghost grow" id="confirm-cancel">Скасувати</button>
+        <button type="button" class="btn grow" id="confirm-ok">Так</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- AUTH -->
 <div id="auth-overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="auth-title">
@@ -432,6 +451,7 @@
   <button type="button" id="startbtn" class="ui px" aria-haspopup="menu" aria-controls="startmenu">◈ START</button>
   <div class="tb-tasks" id="tb-tasks"></div>
   <div class="tb-right">
+    <span class="tb-offline" id="tb-offline" title="Немає інтернету: зміни збережуться тут і полетять у хмару, щойно звʼязок повернеться" hidden>📡 офлайн</span>
     <button type="button" class="ui tb-btn" id="btn-account" title="Акаунт">👤 <span id="acc-label">Гість</span></button>
     <button type="button" class="ui tb-btn" id="btn-tile" title="Режим сітки">▦</button>
     <button type="button" class="ui tb-btn" id="btn-theme" title="Тема">☀️</button>

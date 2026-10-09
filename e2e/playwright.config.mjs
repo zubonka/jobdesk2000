@@ -50,9 +50,10 @@ export default defineConfig({
   webServer,
   testDir: "./tests",
   outputDir: "./test-results",
-  timeout: 90_000,
+  // generous: in Docker Desktop's small VM a phone run of a long journey can take well over a minute
+  timeout: 150_000,
   expect: { timeout: 10_000 },
-  workers: 4,
+  workers: Number(process.env.E2E_WORKERS) || 3,
   reporter: [["list"], ["html", { open: "never", outputFolder: "report" }]],
   use: {
     baseURL: BASE_URL,
