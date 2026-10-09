@@ -129,7 +129,12 @@
         <div class="muted cv-txt" id="cv-txt"><b class="ink">Резюме не завантажено.</b> Завантаж CV у PDF.</div>
         <input type="file" id="cv-file" accept="application/pdf,.pdf" hidden>
         <button type="button" class="btn ghost" id="cv-upload">Завантажити PDF</button>
+        <button type="button" class="btn ghost sm" id="cv-paste-toggle">📋 Вставити текст</button>
         <button type="button" class="btn ghost sm" id="cv-remove" hidden>прибрати</button>
+        <div class="cv-paste" id="cv-paste-box" hidden>
+          <textarea id="cv-paste" class="full" rows="5" placeholder="Встав сюди текст резюме ✦" aria-label="Текст резюме"></textarea>
+          <button type="button" class="btn full mt6" id="cv-paste-save">✦ Зберегти резюме</button>
+        </div>
       </div>
       <div class="form-grid">
         <div class="span-all"><label class="fl" for="cl-job">Вакансія</label><select id="cl-job" class="full"></select></div>

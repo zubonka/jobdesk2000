@@ -161,6 +161,8 @@ label.fl{font-size:14px; color:var(--dim); display:block; margin-bottom:4px; tex
 .cv-zone .cv-ico{font-size:20px;}
 .cv-zone .cv-txt{flex:1; min-width:120px;}
 .cv-ok{color:var(--mint-d);}
+.cv-paste{flex-basis:100%;}
+.cv-paste textarea{resize:vertical;}
 .form-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;}
 .form-grid .span-all{grid-column:1/-1;}
 .chat-log{background:var(--field); border:2px solid var(--field-br); border-radius:8px; padding:10px; max-height:340px; overflow-y:auto; margin-bottom:8px; scroll-behavior:smooth;}
