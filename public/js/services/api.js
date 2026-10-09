@@ -1,8 +1,11 @@
 // Calls to the Netlify functions. Sends the Firebase ID token when the user is signed in.
 
 import { idToken } from "./auth.js";
+import { sleep } from "../core/dom.js";
 
 const BUSY = "Сервіс зараз зайнятий ✦ спробуй ще раз за хвилину.";
+// On a stalled connection the Firebase SDK may never finish loading; the request must not wait for it forever.
+const TOKEN_WAIT_MS = 8000;
 // shortest pasted vacancy text the server analyses (netlify/functions/analyze-vacancy.js, MIN_TEXT)
 export const MIN_VACANCY_TEXT = 40;
 
@@ -18,7 +21,7 @@ export class ApiError extends Error {
 
 async function post(name, payload, timeoutMs) {
   const headers = { "Content-Type": "application/json" };
-  const token = await idToken().catch(() => null);
+  const token = await Promise.race([idToken().catch(() => null), sleep(TOKEN_WAIT_MS).then(() => null)]);
   if (token) headers.Authorization = "Bearer " + token;
 
   const ctrl = new AbortController();

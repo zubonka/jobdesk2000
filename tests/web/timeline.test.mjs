@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { daysBetween, deadlineIn, daysText, weekStart, weeklyApplied, weekStreak } = await import("../../public/js/data/timeline.js");
+const { daysBetween, deadlineIn, daysText, weeksText, weekStart, weeklyApplied, weekStreak } = await import("../../public/js/data/timeline.js");
 
 test("daysBetween counts calendar days, across months, years and the DST switch", () => {
   assert.equal(daysBetween("2026-10-10", "2026-10-10"), 0);
@@ -64,4 +64,8 @@ test("the streak counts weeks in a row and forgives a week that has only just be
   assert.equal(weekStreak(counts([1, 1, 0, 0])), 0);
   assert.equal(weekStreak(counts([0, 0, 0, 0])), 0);
   assert.equal(weekStreak([]), 0);
+});
+
+test("weeksText picks the Ukrainian plural form too", () => {
+  assert.deepEqual([1, 2, 5, 11, 21, 24].map(weeksText), ["1 тиждень", "2 тижні", "5 тижнів", "11 тижнів", "21 тиждень", "24 тижні"]);
 });

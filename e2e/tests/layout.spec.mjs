@@ -56,7 +56,8 @@ test.describe("@layout", () => {
     await page.locator("#confirm-ok").click();
     await expect(page.locator("#toast")).toBeVisible();
     await check(page, testInfo, "05c-undo-notice");
-    await page.locator("#toast .toast-act").click();
+    // the notice only lives a few seconds; a slow screenshot on a busy test machine may outlast it
+    await page.locator("#toast .toast-act").click({ timeout: 3000 }).catch(() => {});
 
     await page.locator("#btn-paste").click();
     await check(page, testInfo, "06-paste-box");

@@ -242,7 +242,7 @@ test("theme, tile mode and the keyboard", async ({ page }) => {
     await expect(page.locator("body")).toHaveClass(/tile-mode/);
     await page.locator("#btn-theme").click(); // used to break tile mode
     await expect(page.locator("body")).toHaveClass(/tile-mode/);
-    await expect(page.locator("#tilewrap .win")).toHaveCount(4);
+    await expect(page.locator("#tilewrap .win")).toHaveCount(5); // the guest windows, README.TXT included
     await expect(page.locator("#win-messenger")).toBeHidden();
     await page.locator("#btn-tile").click();
   }
@@ -401,4 +401,28 @@ test("a guest saves a copy of the data, loses it and gets it back from the copy;
   // a file that is not a copy is refused
   await page.locator("#backup-file").setInputFiles({ name: "x.json", mimeType: "application/json", buffer: Buffer.from('{"hello":1}') });
   await expect(page.locator("#toast")).toContainText("не схоже на копію");
+});
+
+test.describe("installed or offline", () => {
+  test.use({ serviceWorkers: "allow" });
+
+  test("the app opens without a connection after one visit, with the vacancies and the offline badge", async ({ page, context }, testInfo) => {
+    test.skip(testInfo.project.name !== "flows-desktop", "Chromium's service worker is enough here");
+    await seedVacancies(page);
+    await openApp(page);
+    await page.evaluate(() => navigator.serviceWorker.ready);
+    // the worker caches what this first visit loaded
+    await expect.poll(() => page.evaluate(async () => (await caches.keys()).length && (await (await caches.open((await caches.keys())[0])).keys()).length), { timeout: 15_000 }).toBeGreaterThan(10);
+
+    await context.setOffline(true);
+    await page.reload();
+    await page.waitForFunction(() => !!window.jobdesk);
+    await expect(page.locator("#tb-offline")).toBeVisible();
+    await openWindow(page, "vacancies");
+    await expect(page.locator(".jobcard")).toHaveCount(3);
+    await openWindow(page, "readme");
+    await expect(page.locator("#win-readme")).toContainText("README.TXT");
+    await context.setOffline(false);
+    await expect(page.locator("#tb-offline")).toBeHidden();
+  });
 });

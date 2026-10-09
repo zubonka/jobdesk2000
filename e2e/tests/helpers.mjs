@@ -151,7 +151,16 @@ export function layoutProblems(page, { touch = false } = {}) {
       }
       return box;
     };
-    const bubbles = [...document.querySelectorAll("#clippy.show .bubble")].filter(visible).map((el) => el.getBoundingClientRect());
+    // Phones give the fairy her own strip, so she must not overlap anything there. On tablets she floats over the
+    // windows like on a desktop, so she must let taps through instead.
+    const phoneLayout = window.matchMedia("(max-width:760px), (max-height:500px) and (hover:none)").matches;
+    const shownBubbles = [...document.querySelectorAll("#clippy.show .bubble")].filter(visible);
+    if (touchDevice && !phoneLayout) {
+      for (const bubble of shownBubbles) {
+        if (getComputedStyle(bubble).pointerEvents !== "none") problems.push("the fairy's bubble catches taps meant for the window below");
+      }
+    }
+    const bubbles = phoneLayout ? shownBubbles.map((el) => el.getBoundingClientRect()) : [];
     if (touchDevice && bubbles.length) {
       for (const el of document.querySelectorAll(".win.open button, .win.open input, .win.open select, .win.open textarea, .win.open a")) {
         if (!visible(el)) continue;

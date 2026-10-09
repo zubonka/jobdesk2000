@@ -22,6 +22,7 @@ import { initMessenger } from "./apps/messenger.js";
 import { initFairyApp } from "./apps/fairy.js";
 import { initAuthDialog } from "./apps/auth-dialog.js";
 import { initBackup } from "./apps/backup.js";
+import { initOffline } from "./services/offline.js";
 
 loadJobs();
 
@@ -40,6 +41,7 @@ initMessenger();
 initFairyApp();
 initAuthDialog();
 initBackup();
+initOffline();
 
 // The cloud copy replaced local data: every module re-reads storage and redraws.
 on("state", () => {

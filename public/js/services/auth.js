@@ -29,13 +29,19 @@ function onAuthChange(u) {
   }
 }
 
+let watching = false;
+
 export function initAuth() {
   loadFirebase().then((fb) => {
-    if (!fb) return;
+    if (!fb || watching) return;
+    watching = true;
     emit("firebase");
     fb.A.onAuthStateChanged(fb.auth, onAuthChange);
   });
 }
+
+// Opened without a connection (and without the SDK in the offline cache): sign-in and sync start once it is back.
+window.addEventListener("online", () => { if (!watching) initAuth(); });
 
 // Fresh ID token for the backend, or null for guests.
 export async function idToken() {

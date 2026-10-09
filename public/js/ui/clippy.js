@@ -12,7 +12,7 @@ import { paintFairy, POSE } from "../fairy/render.js";
 
 const IDLE_MS = 50000;
 const box = () => byId("clippy");
-let hideTimer = null, idleTimer = null, pose = POSE.idle;
+let hideTimer = null, leaveTimer = null, idleTimer = null, pose = POSE.idle;
 const ding = new Audio("assets/sounds/ding.mp3");
 ding.preload = "none";
 
@@ -28,6 +28,7 @@ const paint = () => paintFairy(byId("clippy-fairy"), { pose });
 export function say(message, nextPose = POSE.idle, ms = 9000) {
   if (!isAuthed()) return;
   const el = box();
+  clearTimeout(leaveTimer); // a hide still playing out must not take the new message with it
   el.classList.remove("leaving");
   byId("clippy-say").textContent = message;
   pose = nextPose;
@@ -42,8 +43,11 @@ export const isTalking = () => box().classList.contains("show");
 
 export function hide() {
   const el = box();
+  if (!el.classList.contains("show")) return;
+  clearTimeout(hideTimer);
   el.classList.add("leaving");
-  setTimeout(() => {
+  clearTimeout(leaveTimer);
+  leaveTimer = setTimeout(() => {
     el.classList.remove("show", "leaving");
     document.body.classList.remove("clippy-on");
   }, 480);
@@ -88,5 +92,10 @@ export function initClippy() {
   new ResizeObserver(() => document.documentElement.style.setProperty("--clippy-h", box().offsetHeight + "px")).observe(box());
   on("fairy", () => { if (box().classList.contains("show")) paint(); });
   on("user", () => { if (!isAuthed() && box().classList.contains("show")) hide(); });
+  // On touch screens the fairy lets taps through (app.css) and the first tap anywhere sends her away,
+  // so she never stands between a finger and a button for long.
+  document.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "touch" && isTalking() && !e.target.closest("#clippy-x")) hide();
+  }, true);
   scheduleIdle();
 }

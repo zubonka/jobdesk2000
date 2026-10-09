@@ -33,6 +33,12 @@
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 
+# Service worker перевіряється при кожному відкритті, щоб нова версія застосунку приходила одразу
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
 # Стилі так само, як код
 [[headers]]
   for = "/css/*"

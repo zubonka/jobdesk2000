@@ -25,12 +25,17 @@ export function deadlineIn(job, today) {
   return daysBetween(today, job.deadline);
 }
 
-// "1 день", "3 дні", "5 днів", "21 день"
-export function daysText(n) {
+// The Ukrainian plural form for n: forms = [one, few, many], e.g. ["день", "дні", "днів"].
+function plural(n, [one, few, many]) {
   const n10 = n % 10, n100 = n % 100;
-  const word = n10 === 1 && n100 !== 11 ? "день" : n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14) ? "дні" : "днів";
-  return n + " " + word;
+  if (n10 === 1 && n100 !== 11) return one;
+  return n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14) ? few : many;
 }
+
+// "1 день", "3 дні", "5 днів", "21 день"
+export const daysText = (n) => n + " " + plural(n, ["день", "дні", "днів"]);
+// "1 тиждень", "3 тижні", "5 тижнів"
+export const weeksText = (n) => n + " " + plural(n, ["тиждень", "тижні", "тижнів"]);
 
 // Monday of the week that contains `iso`.
 export function weekStart(iso) {

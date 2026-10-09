@@ -215,6 +215,18 @@ label.fl{font-size:.875rem; color:var(--dim); display:block; margin-bottom:.25re
 .stat-c{background:var(--field); border:.125rem solid var(--field-br); border-radius:.5rem; padding:.5rem .625rem; text-align:center;}
 .stat-v{font-family:'Press Start 2P',monospace; font-size:1.125rem; margin-top:.25rem;}
 .pipeline{margin-top:.75rem;}
+.funnel, .weeks{margin-top:.875rem;}
+.fun-row{display:grid; grid-template-columns:7.25rem 1fr auto; gap:.5rem; align-items:center; margin-top:.3125rem; font-size:.9375rem;}
+.fun-bar{height:.875rem; border:.125rem solid var(--field-br); border-radius:.4375rem; background:var(--field); overflow:hidden; display:block;}
+.fun-bar i{display:block; height:100%; min-width:0;}
+.fun-n{min-width:3.5rem; text-align:right; white-space:nowrap;}
+.weeks-chart{display:grid; grid-template-columns:repeat(8, 1fr); gap:.375rem; height:7.5rem; margin-top:.375rem; padding:.375rem .375rem 0; border:.125rem solid var(--field-br); border-radius:.5rem; background:var(--field);}
+.wk{display:flex; flex-direction:column; justify-content:flex-end; align-items:center; min-width:0;}
+.wk-n{font-size:.8125rem; color:var(--ink); min-height:1rem;}
+.wk-bar{width:70%; min-height:.1875rem; background:var(--lav-dd); border-radius:.1875rem .1875rem 0 0;}
+.wk.now .wk-bar{background:var(--accent2);}
+.wk-d{font-size:.75rem; color:var(--dim); padding:.1875rem 0; white-space:nowrap;}
+.weeks-note{font-size:.9375rem; margin-top:.375rem;}
 .prog{height:1rem; border:.125rem solid var(--field-br); border-radius:.5rem; overflow:hidden; display:flex; background:var(--field); margin-top:.25rem;}
 
 /* ===== VACANCIES ===== */
@@ -385,6 +397,9 @@ h3.wh.h16{font-size:1rem;}
   .letter-copy{padding:.5rem .75rem;}
   .auth-forgot{padding:.5rem 0;}
   #clippy .bubble .cx{padding:.375rem .5rem; top:0; right:0;}
+  /* a finger aimed at a window must not land on the fairy: only her ✕ takes taps (see ui/clippy.js) */
+  #clippy .bubble{pointer-events:none;}
+  #clippy .bubble .cx{pointer-events:auto;}
 }
 
 @media (prefers-reduced-motion: reduce){

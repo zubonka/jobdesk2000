@@ -60,6 +60,8 @@ export default defineConfig({
     locale: "uk-UA",
     timezoneId: "Europe/Kyiv",
     trace: "retain-on-failure",
+    // the offline test turns the service worker on for itself; everywhere else it would only add noise
+    serviceWorkers: "block",
     screenshot: "only-on-failure",
   },
   projects: [
