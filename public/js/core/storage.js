@@ -14,6 +14,9 @@ export const KEYS = {
   welcomed: "jobdesk2000_welcomed",  // "1" once the welcome dialog was closed
   genders: "jd2000_gender",          // { <uid>: "f" | "m" | "n" }, this device only
   owner: "jd2000_owner",             // uid whose data is stored on this device, this device only
+  syncBase: "jd2000_sync_base",      // fingerprint of the last copy this device and the cloud agreed on
+  syncDirty: "jd2000_sync_dirty",    // "1" while local changes have not reached the cloud yet
+  wallLocal: "jd2000_wall_local",    // "1" when the wallpaper is too big for the cloud copy and lives here only
 };
 
 // Keys with this prefix are mirrored to the cloud for signed-in users.

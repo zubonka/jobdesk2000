@@ -2,6 +2,8 @@
 // and the apps, then signs in through Firebase in the background.
 
 import { on, emit } from "./core/events.js";
+import { KEYS, SYNC_PREFIX } from "./core/storage.js";
+import { currentUser, reloadUser } from "./data/user.js";
 import { loadJobs } from "./data/jobs.js";
 import { reloadCV } from "./data/profile.js";
 import { loadFairy } from "./fairy/store.js";
@@ -46,6 +48,22 @@ on("state", () => {
   emit("fairy");
   emit("cv");
   emit("wallpaper");
+});
+
+// Another tab of the app wrote to storage. This tab reloads from storage, otherwise its next save would write its
+// stale copy over the other tab's change. Signing in or out there reaches this tab through Firebase instead.
+let otherTabTimer = null;
+window.addEventListener("storage", (e) => {
+  if (e.storageArea !== localStorage) return;
+  if (e.key === KEYS.user) {
+    const next = (() => { try { return JSON.parse(e.newValue || "null"); } catch (err) { return null; } })();
+    const cur = currentUser();
+    if (next && cur && next.uid === cur.uid) { reloadUser(); emit("user"); }
+    return;
+  }
+  if (e.key !== null && !e.key.startsWith(SYNC_PREFIX)) return;
+  clearTimeout(otherTabTimer);
+  otherTabTimer = setTimeout(() => emit("state"), 100);
 });
 
 // Firebase (~175 KB) waits for the page to load; the desktop already renders from the local copy of the user.

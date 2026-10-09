@@ -1,31 +1,45 @@
-// Mirrors the synced localStorage keys of a signed-in user to Firestore (users/<uid>, field "data"
-// holds a JSON string of { key: rawValue }; the format is shared with older versions of the app).
+// Mirrors the synced localStorage keys of a signed-in user to Firestore: document users/<uid>, field "data" with a
+// JSON string of { key: rawValue } (the format older versions of the app wrote too), field "updated" in ms.
 //
-// Rules:
-// - The first server snapshot after sign-in decides the merge. Cached (offline) snapshots never do,
-//   so an offline device cannot overwrite the cloud with stale or empty data.
-// - Cloud data wins. Guest vacancies created on this device before signing in are merged in.
-// - A device that holds another account's data never uploads it into this account.
-// - Our own writes echoing back are ignored, so typing is never overwritten by an older copy.
+// How it stays safe:
+// - Every write is a transaction that reads the cloud copy first and merges (services/sync-merge.js) when another
+//   device changed it, so a stale or offline copy never overwrites newer data.
+// - Local edits are marked dirty (persisted) until the cloud has them. Edits made before sync starts, offline, or
+//   in a tab closed too early are merged in on the next sync instead of being thrown away.
+// - Only a server snapshot can start the first sync; a cached (offline) one never decides anything.
+// - Applying a cloud copy never writes back, so devices do not echo each other's updates.
+// - A device that holds another account's data never uploads it; guest vacancies join the account they sign in to.
 
-import { KEYS, SYNC_PREFIX, getRaw, setRaw, remove, silently, onWrite, syncedEntries } from "../core/storage.js";
+import { KEYS, SYNC_PREFIX, getRaw, getJSON, setRaw, setJSON, remove, silently, onWrite, syncedEntries } from "../core/storage.js";
 import { loadFirebase, firebaseNow } from "./firebase.js";
 import { emit } from "../core/events.js";
 import { currentUser, setUser, rememberGender } from "../data/user.js";
+import { merge, fingerprint, sameData } from "./sync-merge.js";
 
 const PUSH_DELAY_MS = 800;
+const FLUSH_TIMEOUT_MS = 4000;
 const MAX_DOC_CHARS = 900 * 1024; // Firestore documents are limited to 1 MiB
 const USER_DATA_KEYS = [KEYS.progress, KEYS.jobs, KEYS.cv, KEYS.fairy, KEYS.wallpaper, KEYS.collapsed];
+const NO_HISTORY = { keys: {}, jobs: {} };
+
+// the account that was signed in when the page loaded: an upgraded device whose old app never wrote
+// jd2000_owner still holds that account's data, not a guest's
+const loadedUid = (currentUser() || {}).uid || "";
 
 let uid = null;          // account being synced
 let ready = false;       // first server snapshot handled
-let inSync = false;      // local data equals the cloud copy
 let timer = null;
 let pending = null;      // promise of the push in flight
 let lastPushed = null;   // JSON we wrote last, to recognise its echo
+let inflight = null;     // JSON of the write being committed (its snapshot can arrive before the commit resolves)
 let unsubscribe = null;
 
 const docRef = (fb, id) => fb.F.doc(fb.db, "users", id);
+const isDirty = () => getRaw(KEYS.syncDirty) === "1";
+const setDirty = (on) => (on ? setRaw(KEYS.syncDirty, "1") : remove(KEYS.syncDirty));
+const loadBase = () => getJSON(KEYS.syncBase, null) || NO_HISTORY;
+const hasBase = () => getRaw(KEYS.syncBase) !== null;
+const saveBase = (data) => setJSON(KEYS.syncBase, fingerprint(data));
 
 function parseDoc(snap) {
   if (!snap.exists()) return {};
@@ -33,130 +47,151 @@ function parseDoc(snap) {
   try { return d && d.data ? JSON.parse(d.data) || {} : {}; } catch (e) { return {}; }
 }
 
-// local synced entries except the user record, which comes from Firebase Auth
-function localData() {
-  const entries = syncedEntries();
-  delete entries[KEYS.user];
-  return entries;
+const localData = () => syncedEntries();
+const hasUserData = (data) => Object.keys(data).some((k) => k !== KEYS.user);
+
+// The wallpaper is left out of the cloud copy when the document would get too big; it then lives on this device.
+function forCloud(data) {
+  if (JSON.stringify(data).length <= MAX_DOC_CHARS) return { cloud: data, wallLocal: false };
+  const { [KEYS.wallpaper]: wall, ...rest } = data;
+  return { cloud: rest, wallLocal: wall !== undefined };
 }
 
-function sameData(a, b) {
-  const ka = Object.keys(a).filter((k) => k !== KEYS.user).sort();
-  const kb = Object.keys(b).filter((k) => k !== KEYS.user).sort();
-  return ka.length === kb.length && ka.every((k, i) => k === kb[i] && a[k] === b[k]);
+// The user record belongs to this account: the cloud may update its name and gender, never swap the account.
+function sameAccountUser(merged, local) {
+  let next = null;
+  try { next = JSON.parse(merged[KEYS.user] || "null"); } catch (e) { /* keep local */ }
+  return next && next.uid === uid ? merged[KEYS.user] : local[KEYS.user];
 }
 
-function payload() {
-  const entries = syncedEntries();
-  let json = JSON.stringify(entries);
-  if (json.length > MAX_DOC_CHARS) {
-    delete entries[KEYS.wallpaper]; // a big wallpaper stays on this device only
-    json = JSON.stringify(entries);
+function adoptUser(record) {
+  let next = null;
+  try { next = JSON.parse(record || "null"); } catch (e) { return; }
+  const cur = currentUser();
+  if (!next || !cur || next.uid !== cur.uid) return;
+  if (next.gender && next.gender !== cur.gender) rememberGender(cur.uid, next.gender);
+  if ((next.name && next.name !== cur.name) || (next.gender && next.gender !== cur.gender)) {
+    setUser({ ...cur, name: next.name || cur.name, gender: next.gender || cur.gender });
   }
-  return json;
 }
 
+// Makes the local synced keys equal to `next`, without writing anything back to the cloud.
+function replaceLocal(next) {
+  const local = localData();
+  const keepWall = getRaw(KEYS.wallLocal) === "1" && next[KEYS.wallpaper] === undefined;
+  silently(() => {
+    for (const key of Object.keys(local)) {
+      if (key === KEYS.user || (key === KEYS.wallpaper && keepWall)) continue;
+      if (!(key in next)) remove(key);
+    }
+    for (const [key, value] of Object.entries(next)) {
+      if (key !== KEYS.user && key.startsWith(SYNC_PREFIX) && typeof value === "string" && local[key] !== value) setRaw(key, value);
+    }
+    adoptUser(next[KEYS.user]);
+    emit("state"); // stores reload; what they write while reloading is not a user edit
+  });
+}
+
+function clearUserData() {
+  silently(() => {
+    USER_DATA_KEYS.forEach(remove);
+    emit("state");
+  });
+  remove(KEYS.syncBase);
+  remove(KEYS.wallLocal);
+}
+
+// One transaction: read the cloud copy, merge it with this device's data when someone else changed it, write.
 async function push() {
   timer = null;
   const fb = firebaseNow();
   if (!fb || !uid || !ready) return false;
-  const json = payload();
-  if (json.length > MAX_DOC_CHARS) { console.warn("cloud sync skipped: data too large", json.length); return false; }
-  lastPushed = json;
+  const id = uid;
+  const before = localData();
   try {
-    await fb.F.setDoc(docRef(fb, uid), { data: json, updated: Date.now() }, { merge: true });
-    if (json === payload()) inSync = true;
+    const result = await fb.F.runTransaction(fb.db, async (tx) => {
+      const remote = parseDoc(await tx.get(docRef(fb, id)));
+      // an empty cloud document is a new account, not "everything was deleted"
+      const merged = hasUserData(remote) ? merge(loadBase(), before, remote) : { ...before };
+      const user = sameAccountUser(merged, before);
+      if (user !== undefined) merged[KEYS.user] = user;
+      const { cloud, wallLocal } = forCloud(merged);
+      const json = JSON.stringify(cloud);
+      if (!sameData(cloud, remote)) {
+        inflight = json;
+        tx.set(docRef(fb, id), { data: json, updated: Date.now() }, { merge: true });
+      }
+      return { merged, cloud, json, wallLocal };
+    });
+    if (uid !== id) return false;
+    lastPushed = result.json;
+    saveBase(result.cloud);
+    if (result.wallLocal) setRaw(KEYS.wallLocal, "1"); else remove(KEYS.wallLocal);
+    if (!sameData(localData(), before)) { schedule(); return true; } // the user kept typing: go again on top of it
+    if (!sameData(result.merged, before)) replaceLocal(result.merged); // another device's edits came in with the merge
+    setDirty(false);
     return true;
   } catch (err) {
-    console.warn("cloud sync failed:", err);
+    console.warn("cloud sync postponed:", err && (err.code || err.message)); // offline or contention; stays dirty
     return false;
   }
 }
 
 function schedule() {
-  inSync = false;
   if (!ready || !uid) return;
   clearTimeout(timer);
   timer = setTimeout(() => { pending = push(); }, PUSH_DELAY_MS);
 }
-onWrite(schedule);
 
-// Takes the cloud's name and gender for this account (the gender is not part of the Firebase profile).
-function adoptRemoteUser(remote) {
-  let ru = null;
-  try { ru = JSON.parse(remote[KEYS.user] || "null"); } catch (e) { return; }
-  const cur = currentUser();
-  if (!ru || !cur || ru.uid !== cur.uid) return;
-  if (ru.gender && ru.gender !== cur.gender) rememberGender(cur.uid, ru.gender);
-  if ((ru.name && ru.name !== cur.name) || (ru.gender && ru.gender !== cur.gender)) {
-    setUser({ ...cur, name: ru.name || cur.name, gender: ru.gender || cur.gender });
-  }
-}
-
-// Makes the local synced keys equal to `remote` (the user record excepted).
-// The wallpaper is only ever overwritten, because it is left out of the cloud copy when too big.
-function replaceLocal(remote) {
-  silently(() => {
-    for (const key of Object.keys(localData())) {
-      if (!(key in remote) && key !== KEYS.wallpaper) remove(key);
-    }
-    for (const [key, value] of Object.entries(remote)) {
-      if (key !== KEYS.user && key.startsWith(SYNC_PREFIX) && typeof value === "string") setRaw(key, value);
-    }
-  });
-  emit("state");
-}
-
-const parse = (text, fallback) => { try { return JSON.parse(text) ?? fallback; } catch (e) { return fallback; } };
-
-// Guest vacancies (and their progress) join the account; on any clash the cloud copy wins.
-function withGuestJobs(remote, local) {
-  const remoteJobs = parse(remote[KEYS.jobs], []), localJobs = parse(local[KEYS.jobs], []);
-  if (!Array.isArray(localJobs) || !localJobs.length) return { data: remote, changed: false };
-  const jobs = Array.isArray(remoteJobs) ? remoteJobs.slice() : [];
-  const ids = new Set(jobs.map((j) => j.company + "|" + j.title));
-  const progress = parse(remote[KEYS.progress], {}) || {};
-  const localProgress = parse(local[KEYS.progress], {}) || {};
-  let changed = false;
-  for (const j of localJobs) {
-    const id = j.company + "|" + j.title;
-    if (ids.has(id)) continue;
-    ids.add(id);
-    jobs.push(j);
-    if (localProgress[id]) progress[id] = localProgress[id];
-    changed = true;
-  }
-  if (!changed) return { data: remote, changed };
-  return { data: { ...remote, [KEYS.jobs]: JSON.stringify(jobs), [KEYS.progress]: JSON.stringify(progress) }, changed };
-}
-
-function clearUserData() {
-  silently(() => USER_DATA_KEYS.forEach(remove));
-  emit("state");
-}
+onWrite(() => {
+  setDirty(true);
+  schedule();
+});
 
 function firstSync(remote) {
-  const owner = getRaw(KEYS.owner);
-  const hasRemote = Object.keys(remote).some((k) => k !== KEYS.user);
-  let needsPush = false;
-  if (hasRemote) {
-    let data = remote;
-    if (!owner) {
-      const merged = withGuestJobs(remote, localData());
-      data = merged.data;
-      needsPush = merged.changed;
-    }
-    adoptRemoteUser(remote);
-    if (!sameData(data, localData())) replaceLocal(data);
-  } else if (owner && owner !== uid) {
-    clearUserData(); // this device holds someone else's data
+  const owner = getRaw(KEYS.owner) || (loadedUid === uid ? uid : "");
+  const local = localData();
+  if (owner && owner !== uid) {
+    clearUserData(); // this device held someone else's data
+    if (hasUserData(remote)) replaceLocal(remote);
+    setDirty(false);
+  } else if (!owner && hasUserData(local)) {
+    // guest data on this device joins the account
+    const merged = hasUserData(remote) ? merge(NO_HISTORY, local, remote) : local;
+    if (!sameData(merged, local)) replaceLocal(merged);
+    setDirty(true);
+  } else if (isDirty() && hasBase() && hasUserData(remote)) {
+    // edits this device made before the cloud had them: merge instead of throwing them away.
+    // Without a base (a device upgraded from the old app) there is no common history to merge on, so the cloud wins.
+    const merged = merge(loadBase(), local, remote);
+    if (!sameData(merged, local)) replaceLocal(merged);
+  } else if (hasUserData(remote)) {
+    if (!sameData(remote, local)) replaceLocal(remote);
+    setDirty(false);
   } else {
-    needsPush = Object.keys(localData()).length > 0; // first sign-in: the device data becomes the account's
+    setDirty(hasUserData(local)); // a new account: whatever is here becomes its first cloud copy
   }
   setRaw(KEYS.owner, uid);
+  if (hasUserData(remote)) saveBase(remote); else remove(KEYS.syncBase);
   ready = true;
-  inSync = !needsPush;
-  if (needsPush) schedule();
+  if (isDirty()) schedule();
+}
+
+function onSnapshot(id, snap) {
+  if (uid !== id || snap.metadata.hasPendingWrites) return;
+  if (!ready) {
+    if (!snap.metadata.fromCache) firstSync(parseDoc(snap));
+    return;
+  }
+  if (snap.metadata.fromCache) return;
+  const d = snap.exists() ? snap.data() : null;
+  if (d && (d.data === lastPushed || d.data === inflight)) return; // the echo of our own write
+  const remote = parseDoc(snap);
+  const local = localData();
+  const next = isDirty() && hasBase() ? merge(loadBase(), local, remote) : remote;
+  if (!sameData(next, local)) replaceLocal(next);
+  saveBase(remote);
+  if (isDirty()) schedule();
 }
 
 export async function startSync(id) {
@@ -165,20 +200,8 @@ export async function startSync(id) {
   uid = id;
   const fb = await loadFirebase();
   if (!fb || uid !== id) return;
-  unsubscribe = fb.F.onSnapshot(docRef(fb, id), { includeMetadataChanges: true }, (snap) => {
-    if (uid !== id || snap.metadata.hasPendingWrites) return;
-    if (!ready) {
-      if (!snap.metadata.fromCache) firstSync(parseDoc(snap));
-      return;
-    }
-    const d = snap.exists() ? snap.data() : null;
-    if (d && d.data === lastPushed) return; // the echo of our own write
-    const remote = parseDoc(snap);
-    if (sameData(remote, syncedEntries())) { inSync = true; return; }
-    adoptRemoteUser(remote);
-    replaceLocal(remote);
-    inSync = true;
-  }, (err) => console.warn("cloud watch failed:", err));
+  unsubscribe = fb.F.onSnapshot(docRef(fb, id), { includeMetadataChanges: true }, (snap) => onSnapshot(id, snap),
+    (err) => console.warn("cloud watch failed:", err));
 }
 
 export function stopSync() {
@@ -188,18 +211,26 @@ export function stopSync() {
   timer = null;
   uid = null;
   ready = false;
-  inSync = false;
 }
 
-// Sends pending changes now. Resolves true when the cloud copy is known to match this device.
+// Sends pending changes now, waiting at most a few seconds (offline the write would wait forever).
+// Resolves true when the cloud copy is known to match this device.
 export async function flushSync() {
-  if (timer) { clearTimeout(timer); pending = push(); }
-  if (pending) { try { await pending; } catch (e) { /* reported in push */ } }
-  return ready && inSync;
+  if (!ready) return false;
+  if (timer || isDirty()) { clearTimeout(timer); timer = null; pending = push(); }
+  const timeout = new Promise((resolve) => setTimeout(resolve, FLUSH_TIMEOUT_MS, false));
+  await Promise.race([pending || Promise.resolve(), timeout]);
+  return ready && !isDirty();
 }
 
 // After signing out: drop this account's data from the device, but only if the cloud has it.
 export function forgetAccountData() {
   clearUserData();
   remove(KEYS.owner);
+  remove(KEYS.syncDirty);
 }
+
+// Leaving the tab or getting the connection back: send what is still waiting.
+const pushIfDirty = () => { if (ready && isDirty() && !timer) pending = push(); };
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") pushIfDirty(); });
+window.addEventListener("online", pushIfDirty);

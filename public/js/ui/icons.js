@@ -1,7 +1,7 @@
 // Desktop icons. On desktop they snap to a grid, can be dragged and remember their cells;
 // on phones they form a fixed home-screen grid (row by row) and are not draggable.
 
-import { KEYS, getJSON, setJSON } from "../core/storage.js";
+import { KEYS, getJSON, setJSON, getRaw, setRaw } from "../core/storage.js";
 import { byId, qsa } from "../core/dom.js";
 import { on } from "../core/events.js";
 import { openWin, isOpen, isMobile, uiScale } from "./windows.js";
@@ -66,7 +66,9 @@ export function layoutIcons() {
     place(ic, cell);
     positions[app] = toSaved(cellToXY(cell));
   });
-  setJSON(KEYS.iconPos, positions);
+  // only a real change is saved: a plain page load must not look like an edit to cloud sync
+  const text = JSON.stringify(positions);
+  if (text !== getRaw(KEYS.iconPos)) setRaw(KEYS.iconPos, text);
 }
 
 function makeDraggable(ic) {
