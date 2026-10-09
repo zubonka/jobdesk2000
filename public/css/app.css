@@ -268,11 +268,11 @@ h3.wh.h16{font-size:16px;}
 .gender-btn .muted{font-size:12px;}
 .auth-msg{margin-bottom:8px;}
 .auth-forgot{display:block; width:100%; text-align:center; margin-top:8px; cursor:pointer; text-decoration:underline; font-size:14px;}
-.auth-warn{margin-top:10px; font-size:13px; line-height:1.4;}
 .edit-ai{border:2px solid var(--field-br); border-radius:8px; padding:10px; margin-bottom:12px;}
 .edit-ai textarea{resize:vertical;}
 .edit-field{width:100%; margin-bottom:8px;}
 #ev-prio{margin-bottom:12px;}
+#ev-save{flex:2;}
 .edit-msg{min-height:14px; margin-bottom:8px;}
 #gate-fairy{width:90px; height:90px; margin:0 auto 10px;}
 .gate-text{font-size:17px; margin-bottom:14px;}
