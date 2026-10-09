@@ -280,7 +280,7 @@ async function sendEdit() {
 
 /* ----- init ----- */
 
-const paintAvatar = () => paintFairy(byId("msg-fairy"), { size: "44px" });
+const paintAvatar = () => paintFairy(byId("msg-fairy"));
 
 export function initMessenger() {
   byId("cv-upload").addEventListener("click", () => byId("cv-file").click());

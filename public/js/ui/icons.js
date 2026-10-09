@@ -4,10 +4,17 @@
 import { KEYS, getJSON, setJSON } from "../core/storage.js";
 import { byId, qsa } from "../core/dom.js";
 import { on } from "../core/events.js";
-import { openWin, isOpen, isMobile } from "./windows.js";
+import { openWin, isOpen, isMobile, uiScale } from "./windows.js";
 
+// Cell sizes at the 16 px root size; big screens scale them with the root (uiScale).
+// Saved positions are in those unscaled pixels, so they stay valid when the scale changes.
 const GRID = { desktop: { gx: 100, gy: 108, pad: 14 }, mobile: { gx: 96, gy: 124, pad: 12 } };
-const grid = () => (isMobile() ? GRID.mobile : GRID.desktop);
+function grid() {
+  const g = isMobile() ? GRID.mobile : GRID.desktop, k = uiScale();
+  return { gx: g.gx * k, gy: g.gy * k, pad: g.pad * k };
+}
+const toSaved = ({ x, y }) => ({ x: Math.round(x / uiScale()), y: Math.round(y / uiScale()) });
+const fromSaved = ({ x, y }) => ({ x: x * uiScale(), y: y * uiScale() });
 
 let positions = getJSON(KEYS.iconPos, {}) || {};
 
@@ -18,7 +25,7 @@ const xyToCell = (x, y) => ({ col: Math.max(0, Math.round((x - grid().pad) / gri
 
 function limits() {
   const desk = byId("desktop");
-  const iconH = Math.max(...icons().map((ic) => ic.offsetHeight), 90);
+  const iconH = Math.max(...icons().map((ic) => ic.offsetHeight), 90 * uiScale());
   return {
     cols: Math.max(1, Math.floor((desk.clientWidth - grid().pad) / grid().gx)),
     rows: Math.max(1, Math.floor((desk.clientHeight - grid().pad - iconH) / grid().gy) + 1),
@@ -53,10 +60,11 @@ export function layoutIcons() {
   icons().forEach((ic, i) => {
     const app = ic.dataset.open;
     const saved = positions[app];
-    const cell = freeCell(saved ? xyToCell(saved.x, saved.y) : { col: 0, row: i }, used);
+    const at = saved && fromSaved(saved);
+    const cell = freeCell(at ? xyToCell(at.x, at.y) : { col: 0, row: i }, used);
     used.add(key(cell));
     place(ic, cell);
-    positions[app] = cellToXY(cell);
+    positions[app] = toSaved(cellToXY(cell));
   });
   setJSON(KEYS.iconPos, positions);
 }
@@ -89,7 +97,7 @@ function makeDraggable(ic) {
     const used = new Set(icons().filter((x) => x !== ic).map((x) => key(xyToCell(parseFloat(x.style.left), parseFloat(x.style.top)))));
     const cell = freeCell(xyToCell(parseFloat(ic.style.left), parseFloat(ic.style.top)), used);
     place(ic, cell);
-    positions[ic.dataset.open] = cellToXY(cell);
+    positions[ic.dataset.open] = toSaved(cellToXY(cell));
     setJSON(KEYS.iconPos, positions);
   });
   ic.addEventListener("pointercancel", () => { drag = null; ic.classList.remove("dragging"); });

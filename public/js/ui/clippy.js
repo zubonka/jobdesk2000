@@ -22,7 +22,7 @@ export function playDing() {
   try { ding.currentTime = 0; ding.play().catch(() => {}); } catch (e) { /* autoplay blocked */ }
 }
 
-const paint = () => paintFairy(byId("clippy-fairy"), { pose, size: "140px" });
+const paint = () => paintFairy(byId("clippy-fairy"), { pose });
 
 // Shows a message (plain text) for `ms` milliseconds.
 export function say(message, nextPose = POSE.idle, ms = 9000) {

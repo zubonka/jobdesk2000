@@ -16,13 +16,17 @@ export const APPS = {
 };
 export const APP_NAMES = Object.keys(APPS);
 
-const MIN_W = 260, MIN_H = 160, EDGE = 8;
+// Geometry is designed at the 16 px root size; big screens scale the root size (see app.css), and uiScale() follows.
+const MIN_W = 260, MIN_H = 160, EDGE = 8, CASCADE = 18, HEAD_REACH = 120, HEAD_KEEP = 40;
+// phones, including a phone held sideways; keep in sync with the media query in app.css
+const MOBILE = "(max-width:760px), (max-height:500px) and (hover:none)";
 let zTop = 100;
 let tileMode = false;
 const openHooks = {};
 
 export const winEl = (app) => byId("win-" + app);
-export const isMobile = () => window.matchMedia("(max-width:760px)").matches;
+export const isMobile = () => window.matchMedia(MOBILE).matches;
+export const uiScale = () => (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16) / 16;
 export const isOpen = (app) => !!winEl(app)?.classList.contains("open");
 export const isFocused = (app) => !!winEl(app)?.classList.contains("focused");
 export const inTileMode = () => tileMode;
@@ -69,21 +73,25 @@ function placeNew(w) {
   if (isMobile()) return;
   const desk = desktop();
   const dw = desk.clientWidth, dh = desk.clientHeight;
-  const ww = w.offsetWidth || 460, wh = w.offsetHeight || 400;
-  const cascade = qsa(".win[data-app].open").length * 18;
-  const x = Math.min(Math.max(EDGE, (dw - ww) / 2) + cascade, dw - ww - EDGE);
-  const y = Math.min(Math.max(EDGE, (dh - wh) / 2) + cascade, dh - wh - EDGE);
-  w.style.left = Math.max(EDGE, x) + "px";
-  w.style.top = Math.max(EDGE, y) + "px";
+  const k = uiScale(), edge = EDGE * k;
+  const ww = w.offsetWidth || 460 * k, wh = w.offsetHeight || 400 * k;
+  const cascade = qsa(".win[data-app].open").length * CASCADE * k;
+  const x = Math.min(Math.max(edge, (dw - ww) / 2) + cascade, dw - ww - edge);
+  const y = Math.min(Math.max(edge, (dh - wh) / 2) + cascade, dh - wh - edge);
+  w.style.left = Math.max(edge, x) + "px";
+  w.style.top = Math.max(edge, y) + "px";
   keepInView(w);
 }
 
-// Moves a window up when its bottom edge would sit under the taskbar (content grew, viewport shrank).
+// Pulls a window back when it would sit under the taskbar or off the side (content grew, viewport shrank).
 export function keepInView(w) {
   if (!canDrag() || !w.classList.contains("open")) return;
-  const limit = desktop().clientHeight - EDGE;
-  const top = w.offsetTop, bottom = top + w.offsetHeight;
-  if (bottom > limit) w.style.top = Math.max(EDGE, top - (bottom - limit)) + "px";
+  const edge = EDGE * uiScale();
+  const desk = desktop();
+  const top = w.offsetTop, bottom = top + w.offsetHeight, limit = desk.clientHeight - edge;
+  if (bottom > limit) w.style.top = Math.max(edge, top - (bottom - limit)) + "px";
+  const left = w.offsetLeft, maxLeft = desk.clientWidth - Math.min(w.offsetWidth, desk.clientWidth - 2 * edge) - edge;
+  if (left > maxLeft) w.style.left = Math.max(edge, maxLeft) + "px";
 }
 
 function makeDraggable(w) {
@@ -99,8 +107,9 @@ function makeDraggable(w) {
   });
   head.addEventListener("pointermove", (e) => {
     if (!drag) return;
-    const maxTop = desktop().clientHeight - 40; // keep the title bar reachable
-    const x = Math.max(-w.offsetWidth + 120, Math.min(e.clientX - drag.dx, window.innerWidth - 120));
+    const k = uiScale();
+    const maxTop = desktop().clientHeight - HEAD_KEEP * k; // keep the title bar reachable
+    const x = Math.max(-w.offsetWidth + HEAD_REACH * k, Math.min(e.clientX - drag.dx, window.innerWidth - HEAD_REACH * k));
     const y = Math.max(0, Math.min(e.clientY - drag.dy, maxTop));
     w.style.left = x + "px";
     w.style.top = y + "px";
@@ -126,9 +135,10 @@ function makeResizable(w) {
   });
   grip.addEventListener("pointermove", (e) => {
     if (!start) return;
-    const maxH = Math.max(MIN_H, desktop().clientHeight - w.offsetTop - EDGE);
-    w.style.width = Math.max(MIN_W, start.w + (e.clientX - start.x)) + "px";
-    w.style.height = Math.min(Math.max(MIN_H, start.h + (e.clientY - start.y)), maxH) + "px";
+    const k = uiScale();
+    const maxH = Math.max(MIN_H * k, desktop().clientHeight - w.offsetTop - EDGE * k);
+    w.style.width = Math.max(MIN_W * k, start.w + (e.clientX - start.x)) + "px";
+    w.style.height = Math.min(Math.max(MIN_H * k, start.h + (e.clientY - start.y)), maxH) + "px";
     w.style.maxHeight = "none";
   });
   const end = () => { start = null; };

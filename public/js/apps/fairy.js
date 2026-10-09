@@ -24,8 +24,8 @@ function renderFairy() {
   const name = fairyName();
   const colours = fairyColors();
   for (const btn of qsa(".type-btn")) btn.classList.toggle("sel", btn.dataset.type === fairyType());
-  for (const type of TYPES) paintFairy(byId(TYPE_PREVIEW[type]), { type, size: "48px" });
-  paintFairy(byId("fairy-preview"), { size: "130px" });
+  for (const type of TYPES) paintFairy(byId(TYPE_PREVIEW[type]), { type });
+  paintFairy(byId("fairy-preview"));
   for (const zone of ZONES) byId("cc-" + zone).value = colours[zone];
   byId("fairy-hello").textContent = name ? "Твоя фея: " + name + " ✦" : "Обери свою фею ✦";
   // the store already holds what is being typed; rewriting the field would only move the caret

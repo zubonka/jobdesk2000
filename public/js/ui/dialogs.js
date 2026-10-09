@@ -40,7 +40,7 @@ const GATE_TEXT = {
 
 function showGate(app) {
   byId("gate-text").textContent = GATE_TEXT[app] || GATE_TEXT.messenger;
-  paintFairy(byId("gate-fairy"), { type: "type1", colours: fairyColors(), size: "90px" });
+  paintFairy(byId("gate-fairy"), { type: "type1", colours: fairyColors() });
   openDialog("gate-overlay");
 }
 
@@ -66,7 +66,7 @@ export function maybeWelcome() {
   const root = document.documentElement;
   const show = getRaw(KEYS.welcomed) !== "1" && !isAuthed();
   if (show) {
-    paintFairy(byId("welcome-fairy"), { type: fairyType(), size: "96px" });
+    paintFairy(byId("welcome-fairy"), { type: fairyType() });
     openDialog("welcome-overlay");
   }
   root.classList.remove("first-visit");
