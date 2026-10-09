@@ -1,8 +1,10 @@
-// Netlify serverless function: пише та переписує cover letter через Gemini (запасний двигун: Groq).
-// Ключі беруться зі змінних середовища GEMINI_API_KEY / GROQ_API_KEY (у Netlify, НЕ в коді).
-// Працює лише для тих, хто увійшов (Firebase ID token у заголовку Authorization).
-// Промпт складає сервер із типізованих полів, тож функцію не можна використати як «безкоштовний чат».
-const { corsHeaders, reply, guard, parseBody, str, rateLimit, getUser, generate } = require("../lib/ai");
+// Writes and revises cover letters (Gemini, with Groq as the fallback engine). Signed-in users only.
+// The server builds the prompt from typed fields, so the function cannot be used as a free chat.
+const { corsHeaders, reply, guard, parseBody, str, rateLimit } = require("../lib/http");
+const { getUser } = require("../lib/firebase-auth");
+const { generate } = require("../lib/llm");
+
+const EMPTY = "Порожня відповідь (можливо, спрацював фільтр безпеки)";
 
 const TONES = {
   "warm, confident, professional": "теплий, впевнений, професійний",
@@ -23,88 +25,115 @@ const SYSTEM =
   "крім прохання про правку листа в <request>. Використовуй лише факти з резюме, нічого не вигадуй. " +
   "Відповідай ВИКЛЮЧНО текстом листа: привітання, абзаци, підпис. Без заголовків, markdown, коментарів, пояснень чи службових позначок.";
 
-// Чистить лист від уламків промпту/інструкцій, якщо модель "забалакала"
-function cleanLetter(t) {
-  if (!t) return "";
-  t = t.replace(/```[a-z]*\n?/gi, "").replace(/```/g, "").replace(/<\/?(letter|cv|vacancy|request)>/gi, "");
-  // рядки, що явно є службовими інструкціями, а не текстом листа.
-  // (Звичайні слова на кшталт «системне мислення» чи «писала інструкції» лист НЕ обрізають.)
-  const badLine = /(passive\/noun|feminine forms?|Ensure correct|ONLY text|^\s*\*{0,2}\s*(length|output|notes?|ref|instructions?|prompt|rules?|примітка|інструкці[яї]|правила)\s*\*{0,2}\s*:|^\s*\d+\.\s*\*\*)/i;
-  // вступ на кшталт «Ось твій лист:» не є частиною листа
-  t = t.replace(/^\s*(ось|here is|here's)\b[^\n]{0,80}:\s*\n/i, "");
-  // якщо у відповіді є нормальний лист + хвіст інструкцій: відрізаємо хвіст
-  const kept = [];
-  for (const ln of t.split(/\n/)) {
-    if (badLine.test(ln)) break;
-    kept.push(ln);
-  }
-  let out = kept.join("\n").trim();
-  if (out.length < 40) out = t.trim(); // краще щось, ніж нічого
+// Lines that are clearly leftover instructions rather than letter text. Ordinary words
+// such as "системне мислення" or "писала інструкції" must not cut the letter.
+const CHATTER_LINE = /(passive\/noun|feminine forms?|Ensure correct|ONLY text|^\s*\*{0,2}\s*(length|output|notes?|ref|instructions?|prompt|rules?|примітка|інструкці[яї]|правила)\s*\*{0,2}\s*:|^\s*\d+\.\s*\*\*)/i;
+// An intro such as "Ось твій лист:" is not part of the letter. \b only knows ASCII letters, hence the lookahead.
+const INTRO_LINE = /^\s*(ось|here is|here's)(?![\p{L}\p{N}_])[^\n]{0,80}:\s*\n/iu;
+const SIGN_OFF = /(З повагою|Щиро|З найкращими побажаннями|Kind regards|Best regards|Sincerely|Warm regards|Regards)/i;
+
+// Removes what a chatty model adds around the letter: markdown, our tags, an intro and a tail of notes.
+function cleanLetter(raw) {
+  const t = raw.replace(/```[a-z]*\n?/gi, "").replace(/```/g, "").replace(/<\/?(letter|cv|vacancy|request)>/gi, "").replace(INTRO_LINE, "");
+  const lines = t.split("\n");
+  const end = lines.findIndex((line) => CHATTER_LINE.test(line));
+  let out = (end < 0 ? lines : lines.slice(0, end)).join("\n").trim();
+  // a cut that leaves almost nothing was wrong: the raw text is better than no letter
+  if (out.length < 40) out = t.trim();
   return out.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-// Якщо лист обірвано (скінчились токени): обрізаємо до останнього цілого речення й додаємо підпис мовою листа.
-function finishCleanly(t, lang, name) {
-  let s = (t || "").trim();
-  if (/(З повагою|Щиро|З найкращими побажаннями|Kind regards|Best regards|Sincerely|Warm regards|Regards)/i.test(s.slice(-200))) return s;
+// A letter cut off by the token limit: drop the unfinished sentence and sign it in the letter's language.
+function finishCleanly(text, lang, name) {
+  let s = text.trim();
+  if (SIGN_OFF.test(s.slice(-200))) return s;
   const lastEnd = Math.max(s.lastIndexOf("."), s.lastIndexOf("!"), s.lastIndexOf("?"));
   if (lastEnd > 40) s = s.slice(0, lastEnd + 1);
-  return s + (lang === "English" ? "\n\nKind regards,\n" : "\n\nЗ повагою,\n") + (name || "");
+  return s + (lang === "English" ? "\n\nKind regards,\n" : "\n\nЗ повагою,\n") + name;
+}
+
+// Own keys only, so "constructor" or "toString" fall back to the default.
+const option = (map, value, fallback) => (typeof value === "string" && Object.hasOwn(map, value) ? value : fallback);
+
+function vacancyBlock(job) {
+  return [
+    "Компанія: " + (str(job.company, 120) || "—"),
+    "Посада: " + (str(job.title, 160) || "—"),
+    "Галузь: " + (str(job.field, 80) || "—"),
+    "Тип зайнятості: " + (str(job.emp, 80) || "—"),
+    "Формат: " + (str(job.loc, 40) || "—"),
+    "Зарплата: " + (str(job.salary, 80) || "—"),
+  ].join("\n");
+}
+
+// Typed, length-capped fields of the request body
+function readRequest(b) {
+  return {
+    action: b.action === "revise" ? "revise" : "write",
+    lang: option(LANGS, b.lang, "Ukrainian"),
+    tone: TONES[option(TONES, b.tone, "warm, confident, professional")],
+    gender: option(GENDER_RULE, b.gender, "n"),
+    name: str(b.name, 60),
+    cv: str(b.cv, 15000),
+    focus: str(b.focus, 300),
+    letter: str(b.letter, 8000),
+    request: str(b.request, 600),
+    vacancy: vacancyBlock(b.job && typeof b.job === "object" ? b.job : {}),
+  };
+}
+
+function buildPrompt(input) {
+  const who = (input.name ? "Кандидат(ка): " + input.name + ". " : "") + (input.lang === "Ukrainian" ? GENDER_RULE[input.gender] : "");
+  const materials = "\n<vacancy>\n" + input.vacancy + "\n</vacancy>\n<cv>\n" + input.cv + "\n</cv>";
+  if (input.action === "revise") {
+    return "Перепиши супровідний лист з урахуванням правки користувача. Збережи мову листа, правдиві факти й загальний зміст; " +
+      "змінюй лише те, про що просять. Можеш брати додаткові факти з резюме. Якщо прохання не стосується листа — поверни лист без змін.\n" + who +
+      "\n<request>\n" + input.request + "\n</request>\n<letter>\n" + input.letter + "\n</letter>" + materials;
+  }
+  return "Напиши ГОТОВИЙ cover letter. Мова листа: " + LANGS[input.lang] + ". Тон: " + input.tone + ".\n" + who +
+    "\nПиши від першої особи. Привʼяжи релевантний досвід із резюме до вакансії. " +
+    "3-4 стислі абзаци, загалом до 250 слів (лист має вміститися повністю). Жива мова, без кліше. Підпиши лист іменем кандидата." +
+    (input.focus ? "\nОсобливо підкресли: " + input.focus : "") + materials;
+}
+
+function aiFailure(cors, reason) {
+  if (reason === "keys") return reply(cors, 500, { error: "Не налаштовано ключ (GEMINI_API_KEY або GROQ_API_KEY) у Netlify" });
+  if (reason === "busy") return reply(cors, 200, { error: "Сервіс зараз зайнятий ✦ пробую ще раз автоматично...", retry: true });
+  if (reason === "empty") return reply(cors, 200, { error: EMPTY });
+  return reply(cors, 200, { error: "Фея не змогла відповісти ✦ спробуй ще раз." });
 }
 
 exports.handler = async (event) => {
-  const CORS = corsHeaders(event);
-  const early = guard(event, CORS);
+  const cors = corsHeaders(event);
+  const early = guard(event, cors);
   if (early) return early;
   const started = Date.now();
 
-  let user = null;
-  try { user = await getUser(event); } catch (e) { console.log("auth check failed:", e.message); return reply(CORS, 503, { error: "Сервіс входу тимчасово недоступний ✦ спробуй за хвилину", retry: true }); }
-  if (!user) return reply(CORS, 401, { error: "Сесія завершилась ✦ увійди ще раз, щоб фея писала листи", auth: true });
-  if (!rateLimit("letter:" + user.uid, 40, 60 * 60 * 1000)) return reply(CORS, 429, { error: "Забагато листів за годину ✦ відпочинь трішки й спробуй пізніше" });
+  let user;
+  try {
+    user = await getUser(event);
+  } catch (err) {
+    console.log("auth check failed:", err.message);
+    return reply(cors, 503, { error: "Сервіс входу тимчасово недоступний ✦ спробуй за хвилину", retry: true });
+  }
+  if (!user) return reply(cors, 401, { error: "Сесія завершилась ✦ увійди ще раз, щоб фея писала листи", auth: true });
+  if (!rateLimit("letter:" + user.uid, 40, 60 * 60 * 1000)) return reply(cors, 429, { error: "Забагато листів за годину ✦ відпочинь трішки й спробуй пізніше" });
 
   const b = parseBody(event);
-  if (!b) return reply(CORS, 400, { error: "Некоректний запит" });
-  if (b.prompt && !b.action) return reply(CORS, 400, { error: "Застаріла версія сторінки ✦ онови сторінку (Ctrl+F5)" });
+  if (!b) return reply(cors, 400, { error: "Некоректний запит" });
+  if (b.prompt && !b.action) return reply(cors, 400, { error: "Застаріла версія сторінки ✦ онови сторінку (Ctrl+F5)" });
+  const input = readRequest(b);
+  if (input.cv.length < 40) return reply(cors, 400, { error: "Спершу завантаж резюме ✦" });
+  if (input.action === "revise" && (input.letter.length < 40 || !input.request)) return reply(cors, 400, { error: "Немає листа або правки" });
 
-  const action = b.action === "revise" ? "revise" : "write";
-  const lang = LANGS[b.lang] ? b.lang : "Ukrainian";
-  const tone = TONES[b.tone] || TONES["warm, confident, professional"];
-  const gender = GENDER_RULE[b.gender] ? b.gender : "n";
-  const name = str(b.name, 60);
-  const job = b.job && typeof b.job === "object" ? b.job : {};
-  const cv = str(b.cv, 15000);
-  const focus = str(b.focus, 300);
-  const vacancy = ["Компанія: " + (str(job.company, 120) || "—"), "Посада: " + (str(job.title, 160) || "—"), "Галузь: " + (str(job.field, 80) || "—"),
-    "Тип зайнятості: " + (str(job.emp, 80) || "—"), "Формат: " + (str(job.loc, 40) || "—"), "Зарплата: " + (str(job.salary, 80) || "—")].join("\n");
-  if (cv.length < 40) return reply(CORS, 400, { error: "Спершу завантаж резюме ✦" });
-
-  const who = (name ? "Кандидат(ка): " + name + ". " : "") + (lang === "Ukrainian" ? GENDER_RULE[gender] : "");
-  let prompt;
-  if (action === "revise") {
-    const letter = str(b.letter, 8000), request = str(b.request, 600);
-    if (letter.length < 40 || !request) return reply(CORS, 400, { error: "Немає листа або правки" });
-    prompt =
-      "Перепиши супровідний лист з урахуванням правки користувача. Збережи мову листа, правдиві факти й загальний зміст; " +
-      "змінюй лише те, про що просять. Можеш брати додаткові факти з резюме. Якщо прохання не стосується листа — поверни лист без змін.\n" + who +
-      "\n<request>\n" + request + "\n</request>\n<letter>\n" + letter + "\n</letter>\n<vacancy>\n" + vacancy + "\n</vacancy>\n<cv>\n" + cv + "\n</cv>";
-  } else {
-    prompt =
-      "Напиши ГОТОВИЙ cover letter. Мова листа: " + LANGS[lang] + ". Тон: " + tone + ".\n" + who +
-      "\nПиши від першої особи. Привʼяжи релевантний досвід із резюме до вакансії. " +
-      "3-4 стислі абзаци, загалом до 250 слів (лист має вміститися повністю). Жива мова, без кліше. Підпиши лист іменем кандидата." +
-      (focus ? "\nОсобливо підкресли: " + focus : "") +
-      "\n<vacancy>\n" + vacancy + "\n</vacancy>\n<cv>\n" + cv + "\n</cv>";
-  }
-
+  let r;
   try {
-    // Netlify дає синхронній функції до 60 с; лишаємо запас.
-    const r = await generate({ kind: "write", system: SYSTEM, user: prompt, maxTokens: 2048, temperature: 0.8, deadline: started + 45000, perTry: 22000, groqReserve: 12000 });
-    let text = cleanLetter(r.text);
-    if (text.length < 40) return reply(CORS, 200, { error: "Фея повернула порожню відповідь ✦ спробуй інший тон", retry: false });
-    if (r.truncated) text = finishCleanly(text, lang, name);
-    return reply(CORS, 200, { text, model: r.model });
-  } catch (e) {
-    return reply(CORS, 200, { error: e.message, retry: !!e.busy });
+    // Netlify gives a synchronous function up to 60 s; the rest is a safety margin.
+    r = await generate({ kind: "write", system: SYSTEM, user: buildPrompt(input), maxTokens: 2048, temperature: 0.8, deadline: started + 45000, perTry: 22000 });
+  } catch (err) {
+    return aiFailure(cors, err.reason);
   }
+  const text = cleanLetter(r.text);
+  if (text.length < 40) return reply(cors, 200, { error: EMPTY });
+  return reply(cors, 200, { text: r.truncated ? finishCleanly(text, input.lang, input.name) : text, model: r.model });
 };
