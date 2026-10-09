@@ -15,7 +15,7 @@ public/                        the site, published as is
   index.html                   all markup: desktop, windows, dialogs, start menu, taskbar
   404.html                     not-found page (loads no app JS)
   css/app.css                  all styles: theme tokens, shell, then one section per app
-  assets/                      pixel icons, PWA icons, author photo, notification sound
+  assets/                      pixel icons, PWA icons, social preview, author photo, sound, self-hosted fonts
   favicon.ico, site.webmanifest, robots.txt, sitemap.xml
   js/
     main.js                    entry point: loads data, starts the shell and the apps, then Firebase
@@ -55,10 +55,13 @@ netlify/
   lib/llm.js                   Gemini model chain with the Groq fallback, loose JSON parsing
   lib/page.js                  SSRF-safe page fetch, HTML to text, JSON-LD JobPosting
 netlify.toml                   publish dir, functions, security and cache headers
-scripts/dev-server.js          local server: static files, functions, headers, AI mock
+firestore.rules                Firestore security rules (each user reaches only users/<uid>)
+firebase.json                  Firebase CLI config: the rules file and the local emulators
+scripts/dev-server.js          local server: static files, functions, headers, AI mock, emulator switch
 tests/web/                     unit tests for the browser modules (node:test)
 tests/functions/               unit tests for the functions (node:test)
-docker-compose.yml             app, test and netlify services
+docker-compose.yml             app, test, netlify and firebase (emulators) services
+docker/firebase/Dockerfile     Firebase Auth + Firestore emulators (Java 21, pinned firebase-tools)
 ```
 
 ## Run locally
@@ -88,7 +91,23 @@ What `scripts/dev-server.js` does:
 - `AUTH_TEST_CERTS=<file.json>` answers Google's securetoken certificate request with that file
   (`{ "<kid>": "<PEM certificate>" }`), so tokens signed with a local key pass verification.
   Without it a real sign-in works as in production (Firebase allows `localhost` by default);
+- with `FIREBASE_EMULATORS=1` the functions accept tokens of the local Auth emulator (see below);
 - listens on `HOST` (127.0.0.1) and `PORT` (8888).
+
+### Sign-in and cloud sync without touching the real project
+
+The Firebase Auth and Firestore emulators run in Docker with the rules from `firestore.rules`, under the
+offline project `demo-jobdesk2000`, so test accounts and data never reach the real Firebase project:
+
+```
+docker compose --profile firebase up -d firebase   # emulators: Auth :9099, Firestore :8086, UI http://127.0.0.1:4000
+FIREBASE_EMULATORS=1 npm run dev:mock              # or: FIREBASE_EMULATORS=1 docker compose --profile firebase up
+```
+
+Open `http://localhost:8888/?emulators=1` (the switch is remembered for the tab and only works on
+`localhost` / `127.0.0.1`). Any email and password register an account; Google sign-in shows the emulator's
+fake account picker. The functions accept the emulator's unsigned tokens only under `scripts/dev-server.js`
+with `FIREBASE_EMULATORS=1`; production never does.
 
 With Docker:
 
@@ -96,6 +115,7 @@ With Docker:
 docker compose up app                               # dev server on http://localhost:8888
 docker compose run --rm test                        # unit tests
 docker compose --profile netlify run --rm netlify   # offline Netlify build of the functions
+docker compose --profile firebase up firebase       # Firebase emulators (see above)
 ```
 
 The `app` service reads `.env` when it exists and publishes the port on 127.0.0.1 only. The `netlify`
@@ -157,13 +177,25 @@ formats are shared with the original single-file app and with existing cloud cop
 - A vacancy's id is `<company>|<title>`. It keys the progress map, so renaming a vacancy moves its
   progress and collapsed state to the new id.
 - The status is stored as its label in the user's grammatical gender ("Подалася", "Подався", "Подалися").
-  A label of any gender reads back as the same status, and the labels are rewritten when the gender changes.
+  A label of any gender reads back as the same status, and the next save writes the labels in the user's current form.
 - Cloud copy: for a signed-in user every `jobdesk2000*` key is mirrored to the Firestore document
   `users/<uid>`: field `data` holds a JSON string of `{ key: raw value }`, field `updated` a timestamp in ms.
   The `jd2000_*` keys stay on the device. The wallpaper is left out when the document would pass about 900 KB.
   On sign-in the cloud copy wins, vacancies created here as a guest are merged in, and a device that holds
   another account's data never uploads it.
 - `tests/web/jobs.test.mjs` pins these formats against the original app.
+
+## Where the texts live
+
+Every visible text is plain Ukrainian in the source, so it can be edited without touching any logic:
+
+- windows, dialogs, buttons, placeholders, the START menu: `public/index.html`;
+- what the fairy says on her own (idle phrases, reactions to statuses, specialty phrases): `public/js/content/phrases.js`;
+- messages of a particular window (added, saved, errors): the window's module in `public/js/apps/`;
+- taskbar labels: `APPS` in `public/js/ui/windows.js`; guest gate texts: `GATE_TEXT` in `public/js/ui/dialogs.js`;
+- status names in the three grammatical genders: `public/js/data/statuses.js`;
+- server messages and the AI prompts: `netlify/functions/*.js`;
+- the page title, description and social preview texts: the `<head>` of `public/index.html`.
 
 ## Adding a desktop app (a window)
 
@@ -233,18 +265,11 @@ Two Netlify functions (Lambda-style handlers, CommonJS). The shared code in `net
 
 ## Owner checklist (outside the code)
 
-- **Firestore rules**: each user reads and writes only their own document; nothing else is used.
-
-  ```
-  rules_version = '2';
-  service cloud.firestore {
-    match /databases/{database}/documents {
-      match /users/{uid} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
-      }
-    }
-  }
-  ```
+- **Firestore rules**: `firestore.rules` lets each user read and write only their own document `users/<uid>`
+  with the two fields the app writes, and denies everything else. The live project already refuses
+  unauthenticated access (checked: anonymous read and write of `users/<id>` get 403), but whether its rules also
+  stop one signed-in user from reading another's document cannot be seen from outside. Deploy the file to be sure:
+  `npx firebase-tools@15.30.2 deploy --only firestore:rules --project jobdesk2000` (needs `firebase login`).
 
 - **Firebase Authentication**: Email/Password and Google enabled under Sign-in method; under Settings ->
   Authorized domains `jobdeck2000.netlify.app`, any custom domain and `localhost` (there by default).
