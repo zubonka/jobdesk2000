@@ -29,7 +29,8 @@ const loadedUid = (currentUser() || {}).uid || "";
 let uid = null;          // account being synced
 let ready = false;       // first server snapshot handled
 let timer = null;
-let pending = null;      // promise of the push in flight
+let running = null;      // promise of the push in flight; pushes never overlap
+let again = false;       // another push was asked for while one was running
 let lastPushed = null;   // JSON we wrote last, to recognise its echo
 let inflight = null;     // JSON of the write being committed (its snapshot can arrive before the commit resolves)
 let unsubscribe = null;
@@ -103,14 +104,18 @@ function clearUserData() {
 
 // One transaction: read the cloud copy, merge it with this device's data when someone else changed it, write.
 async function push() {
-  timer = null;
   const fb = firebaseNow();
   if (!fb || !uid || !ready) return false;
   const id = uid;
-  const before = localData();
+  let before = null;
   try {
     const result = await fb.F.runTransaction(fb.db, async (tx) => {
       const remote = parseDoc(await tx.get(docRef(fb, id)));
+      // This device's data and the history it shares with the cloud are read together, after the read above:
+      // a snapshot applied while it waited changes both, and a stale copy paired with newer history would look
+      // like the user deleted whatever the other device added. Firestore may run this function again; each run
+      // takes a fresh pair.
+      before = localData();
       // an empty cloud document is a new account, not "everything was deleted"
       const merged = hasUserData(remote) ? merge(loadBase(), before, remote) : { ...before };
       const user = sameAccountUser(merged, before);
@@ -127,7 +132,15 @@ async function push() {
     lastPushed = result.json;
     saveBase(result.cloud);
     if (result.wallLocal) setRaw(KEYS.wallLocal, "1"); else remove(KEYS.wallLocal);
-    if (!sameData(localData(), before)) { schedule(); return true; } // the user kept typing: go again on top of it
+    const now = localData();
+    if (!sameData(now, before)) {
+      // The user kept typing while this was sent. What was written is the new common history, so it has to reach
+      // this device too, or the next push would read another device's edits in it as deleted here.
+      const next = merge(fingerprint(before), now, result.merged);
+      if (!sameData(next, now)) replaceLocal(next);
+      schedule();
+      return true;
+    }
     if (!sameData(result.merged, before)) replaceLocal(result.merged); // another device's edits came in with the merge
     setDirty(false);
     return true;
@@ -137,10 +150,21 @@ async function push() {
   }
 }
 
+// Starts a push now, or queues one more behind the push that is running.
+function pushNow() {
+  clearTimeout(timer);
+  timer = null;
+  if (running) { again = true; return; }
+  running = push().finally(() => {
+    running = null;
+    if (again) { again = false; pushNow(); }
+  });
+}
+
 function schedule() {
   if (!ready || !uid) return;
   clearTimeout(timer);
-  timer = setTimeout(() => { pending = push(); }, PUSH_DELAY_MS);
+  timer = setTimeout(pushNow, PUSH_DELAY_MS);
 }
 
 onWrite(() => {
@@ -209,6 +233,7 @@ export function stopSync() {
   unsubscribe = null;
   clearTimeout(timer);
   timer = null;
+  again = false;
   uid = null;
   ready = false;
 }
@@ -217,9 +242,10 @@ export function stopSync() {
 // Resolves true when the cloud copy is known to match this device.
 export async function flushSync() {
   if (!ready) return false;
-  if (timer || isDirty()) { clearTimeout(timer); timer = null; pending = push(); }
+  if (timer || isDirty()) pushNow();
+  const settled = (async () => { while (running) await running; })(); // the push in flight and the one queued behind it
   const timeout = new Promise((resolve) => setTimeout(resolve, FLUSH_TIMEOUT_MS, false));
-  await Promise.race([pending || Promise.resolve(), timeout]);
+  await Promise.race([settled, timeout]);
   return ready && !isDirty();
 }
 
@@ -231,6 +257,6 @@ export function forgetAccountData() {
 }
 
 // Leaving the tab or getting the connection back: send what is still waiting.
-const pushIfDirty = () => { if (ready && isDirty() && !timer) pending = push(); };
+const pushIfDirty = () => { if (ready && isDirty() && !timer) pushNow(); };
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") pushIfDirty(); });
 window.addEventListener("online", pushIfDirty);

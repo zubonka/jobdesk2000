@@ -98,3 +98,28 @@ test("broken JSON in a stored value does not throw", () => {
   const out = merge(EMPTY, { [KEYS.jobs]: "{broken", [KEYS.progress]: "[]" }, data({ jobs: [job("A", "One")] }));
   assert.deepEqual(jobsOf(out), ["A|One"]);
 });
+
+// The two races found by the E2E offline test (services/sync.js push()).
+test("a stale copy paired with newer history would delete the other device's vacancy; the right pair keeps it", () => {
+  const start = data({ jobs: [job("Base", "Co")] });
+  const phoneAdded = data({ jobs: [job("Base", "Co"), job("Phone", "Co")] });
+  const laptopEdit = data({ jobs: [job("Base", "Co")], progress: { "Base|Co": { status: "Перша співбесіда" } } });
+  // wrong pair: the laptop's old copy against history that already contains the phone's vacancy
+  assert.deepEqual(jobsOf(merge(fingerprint(phoneAdded), laptopEdit, phoneAdded)), ["Base|Co"]);
+  // right pair: the copy and the history it was made from
+  const out = merge(fingerprint(start), laptopEdit, phoneAdded);
+  assert.deepEqual(jobsOf(out), ["Base|Co", "Phone|Co"]);
+  assert.equal(progressOf(out)["Base|Co"].status, "Перша співбесіда");
+});
+
+test("edits typed during a push are put on top of what the push wrote, nothing of the other device is lost", () => {
+  const before = data({ jobs: [job("A", "One")] });                                         // what the push sent
+  const written = data({ jobs: [job("A", "One"), job("B", "Other device")] });              // merged with the cloud
+  const now = data({ jobs: [job("A", "One")], progress: { "A|One": { note: "typed meanwhile" } } }); // typed since
+  const next = merge(fingerprint(before), now, written);
+  assert.deepEqual(jobsOf(next), ["A|One", "B|Other device"]);
+  assert.equal(progressOf(next)["A|One"].note, "typed meanwhile");
+  // and the following push, with what was written as the common history, keeps both
+  const again = merge(fingerprint(written), next, written);
+  assert.deepEqual(jobsOf(again), ["A|One", "B|Other device"]);
+});
