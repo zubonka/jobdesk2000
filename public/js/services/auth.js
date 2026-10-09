@@ -17,7 +17,11 @@ function onAuthChange(u) {
     startSync(u.uid);
   } else {
     stopSync();
-    if (isAuthed()) clearUser(); // the session ended (signed out elsewhere, expired, or a stale local copy)
+    if (!isAuthed()) return;
+    // The session ended elsewhere (another tab, expiry) or this was a stale local copy. Reloading drops the
+    // previous account's letters, chat and AI phrases that live only in memory.
+    clearUser();
+    location.reload();
   }
 }
 
@@ -66,7 +70,7 @@ export async function signInWithGoogle(pendingGender) {
   const { A, auth } = await sdk();
   const cr = await A.signInWithPopup(auth, new A.GoogleAuthProvider());
   const u = cr.user;
-  if (!hasGenderFor(u.uid) && pendingGender) rememberGender(u.uid, pendingGender);
+  if (pendingGender && (!hasGenderFor(u.uid) || genderFor(u.uid) === "n")) rememberGender(u.uid, pendingGender);
   setUser({ name: nameOf(u), email: u.email || "", gender: genderFor(u.uid), uid: u.uid });
   return { user: u, needsGender: !hasGenderFor(u.uid) };
 }

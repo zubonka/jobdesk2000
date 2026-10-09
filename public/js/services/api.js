@@ -25,14 +25,15 @@ async function post(name, payload, timeoutMs) {
   try {
     res = await fetch("/.netlify/functions/" + name, { method: "POST", headers, body: JSON.stringify(payload), signal: ctrl.signal });
   } catch (err) {
-    throw new ApiError(BUSY, { retry: true });
+    throw new ApiError(BUSY); // offline or no answer in time: an automatic retry would only make the wait longer
   } finally {
     clearTimeout(timer);
   }
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 || data.auth) throw new ApiError(data.error || ("HTTP " + res.status), { auth: true });
   if (!res.ok || data.error) {
-    const retry = !!data.retry || res.status === 429 || res.status >= 502;
+    // 429 is the backend's own rate limit: waiting a few seconds does not help there
+    const retry = !!data.retry || (res.status >= 502 && !data.page);
     throw new ApiError(data.error || (retry ? BUSY : "HTTP " + res.status), { retry, page: !!data.page });
   }
   return data;

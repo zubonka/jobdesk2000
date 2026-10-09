@@ -129,15 +129,12 @@ export function removeJob(id) {
   return true;
 }
 
-// Clears statuses, dates and notes of every vacancy; the vacancies themselves stay.
+// Clears statuses, application dates and notes; deadlines and the vacancies themselves stay.
 export function resetProgress() {
-  for (const j of jobs) Object.assign(j, { status: "not_applied", date: "", deadline: "", note: "" });
+  for (const j of jobs) Object.assign(j, { status: "not_applied", date: "", note: "" });
   save();
   emit("jobs", { type: "reset" });
 }
-
-// Re-saves the progress map so stored labels follow the user's current gender.
-export const resaveProgress = () => { if (jobs.length) save(); };
 
 export const isCollapsed = (id) => !!collapsed[id];
 
