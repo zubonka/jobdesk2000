@@ -12,17 +12,10 @@ const CONFIG = {
 };
 const SDK = "https://www.gstatic.com/firebasejs/10.12.2/";
 
-// Local development: http://localhost:8888/?emulators=1 talks to the Firebase emulators
-// (docker compose --profile firebase up) instead of the real project. Remembered for the tab.
-const EMULATORS = (() => {
-  if (!["localhost", "127.0.0.1"].includes(location.hostname)) return false;
-  try {
-    if (new URLSearchParams(location.search).has("emulators")) sessionStorage.setItem("jd2000_emulators", "1");
-    return sessionStorage.getItem("jd2000_emulators") === "1";
-  } catch (e) {
-    return false;
-  }
-})();
+// Local development only: scripts/dev-server.js run with FIREBASE_EMULATORS=1 adds
+// <meta name="jobdesk-emulators" content="<host>"> to the page, and the app then uses the Firebase emulators on
+// that host (docker compose --profile firebase) instead of the real project. Netlify never serves this tag.
+const EMULATOR_HOST = document.querySelector('meta[name="jobdesk-emulators"]')?.content || "";
 const EMULATOR_PROJECT = "demo-jobdesk2000";
 
 let loading = null;
@@ -37,15 +30,15 @@ export function loadFirebase() {
         import(SDK + "firebase-auth.js"),
         import(SDK + "firebase-firestore.js"),
       ]);
-      const app = initializeApp(EMULATORS ? { ...CONFIG, projectId: EMULATOR_PROJECT, authDomain: "localhost" } : CONFIG);
+      const app = initializeApp(EMULATOR_HOST ? { ...CONFIG, projectId: EMULATOR_PROJECT, authDomain: "localhost" } : CONFIG);
       // initializeAuth instead of getAuth: getAuth also boots the popup/redirect iframe (~95 KB) on every
       // page load, while only Google sign-in needs it (services/auth.js passes the resolver there).
       const auth = A.initializeAuth(app, { persistence: [A.indexedDBLocalPersistence, A.browserLocalPersistence, A.browserSessionPersistence] });
       auth.languageCode = "uk";
       const db = F.getFirestore(app);
-      if (EMULATORS) {
-        A.connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
-        F.connectFirestoreEmulator(db, "127.0.0.1", 8086);
+      if (EMULATOR_HOST) {
+        A.connectAuthEmulator(auth, `http://${EMULATOR_HOST}:9099`, { disableWarnings: true });
+        F.connectFirestoreEmulator(db, EMULATOR_HOST, 8086);
       }
       loaded = { A, F, auth, db };
       return loaded;

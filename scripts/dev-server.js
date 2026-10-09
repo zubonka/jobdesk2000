@@ -23,7 +23,7 @@ loadEnvFile(path.join(ROOT, ".env"));
 
 // The functions accept the Auth emulator's unsigned tokens only when this flag is set, i.e. only under this server.
 process.env.JOBDESK_LOCAL_DEV = "1";
-// FIREBASE_EMULATORS=1: the app (opened with ?emulators=1) uses the local Firebase emulators and the
+// FIREBASE_EMULATORS=1: the app uses the local Firebase emulators (see EMULATOR_META below) and the
 // functions verify tokens of the emulator's demo project.
 if (process.env.FIREBASE_EMULATORS === "1") {
   process.env.FIREBASE_AUTH_EMULATOR_HOST ||= "127.0.0.1:9099";
@@ -169,10 +169,18 @@ function publicFile(urlPath) {
   return file.startsWith(PUBLIC + path.sep) && isFile(file) ? file : null;
 }
 
+// With FIREBASE_EMULATORS=1 every page carries <meta name="jobdesk-emulators" content="<host>">, which makes the
+// app use the Firebase emulators on that host. The browser reaches them on 127.0.0.1 unless
+// FIREBASE_EMULATOR_BROWSER_HOST says otherwise (in Docker the e2e browser uses the "firebase" service).
+const EMULATOR_META = process.env.FIREBASE_EMULATORS === "1"
+  ? `<meta name="jobdesk-emulators" content="${process.env.FIREBASE_EMULATOR_BROWSER_HOST || "127.0.0.1"}">`
+  : "";
+
 async function serveStatic(req, res, url) {
   const file = publicFile(url.pathname);
   const shown = file || path.join(PUBLIC, "404.html");
-  const body = req.method === "HEAD" ? undefined : await fs.promises.readFile(shown);
+  let body = req.method === "HEAD" ? undefined : await fs.promises.readFile(shown);
+  if (body && EMULATOR_META && shown.endsWith(".html")) body = body.toString("utf8").replace("<head>", "<head>\n" + EMULATOR_META);
   // Netlify's headers first; a dev server must never hand out stale code, so caching is always off
   res.writeHead(file ? 200 : 404, { ...headersFor(url.pathname), "Content-Type": TYPES[path.extname(shown)] || "application/octet-stream", "Cache-Control": "no-cache" });
   res.end(body);

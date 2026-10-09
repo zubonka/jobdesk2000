@@ -104,9 +104,10 @@ docker compose --profile firebase up -d firebase   # emulators: Auth :9099, Fire
 FIREBASE_EMULATORS=1 npm run dev:mock              # or: FIREBASE_EMULATORS=1 docker compose --profile firebase up
 ```
 
-Open `http://localhost:8888/?emulators=1` (the switch is remembered for the tab and only works on
-`localhost` / `127.0.0.1`). Any email and password register an account; Google sign-in shows the emulator's
-fake account picker. The functions accept the emulator's unsigned tokens only under `scripts/dev-server.js`
+Open `http://localhost:8888/`: with `FIREBASE_EMULATORS=1` the dev server adds a
+`<meta name="jobdesk-emulators">` tag to the page, and the app then talks to the emulators (on 127.0.0.1, or on
+`FIREBASE_EMULATOR_BROWSER_HOST`). Any email and password register an account; Google sign-in shows the
+emulator's fake account picker. The functions accept the emulator's unsigned tokens only under `scripts/dev-server.js`
 with `FIREBASE_EMULATORS=1`; production never does.
 
 With Docker:

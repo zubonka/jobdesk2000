@@ -2,7 +2,7 @@
 # docker compose run --rm test                   unit tests
 # docker compose --profile netlify run --rm netlify   offline Netlify build: bundles the functions with esbuild
 # FIREBASE_EMULATORS=1 docker compose --profile firebase up   app + Firebase Auth/Firestore emulators,
-#                                                  then open http://localhost:8888/?emulators=1 (UI on :4000)
+#                                                  then open http://localhost:8888/ (emulator UI on :4000)
 name: jobdesk2000
 
 services:
