@@ -87,8 +87,10 @@ body.tile-mode .win-resize{display:none;}
 
 /* ===== GRID / TILE MODE ===== */
 body.tile-mode #desktop{overflow:auto;}
-body.tile-mode .win{position:relative !important; display:flex !important; margin:0; width:auto !important; height:auto !important;
+body.tile-mode #tilewrap .win{position:relative !important; display:flex !important; margin:0; width:auto !important; height:auto !important;
   left:auto !important; top:auto !important; transform:none !important;}
+/* windows a guest may not open stay out of the grid */
+body.tile-mode #desktop > .win{display:none !important;}
 body.tile-mode #icons{display:none;}
 #tilewrap{display:none;}
 body.tile-mode #tilewrap{display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:14px; padding:14px; align-items:start;}
@@ -344,7 +346,7 @@ h3.wh.h16{font-size:16px;}
   .win-resize{display:none !important;}
   #btn-tile{display:none;}
   body.tile-mode #tilewrap{display:block;}
-  body.tile-mode .win{position:fixed !important;}
+  body.tile-mode #tilewrap .win{position:fixed !important;}
 
   /* taskbar: bottom navigation, open apps show their emoji only */
   #taskbar{padding:0 4px; gap:2px;}
