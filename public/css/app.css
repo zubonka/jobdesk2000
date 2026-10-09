@@ -15,7 +15,7 @@
 :root.theme-light{
   --bg1:#8fd0f5; --bg2:#c6ecff; --grid:rgba(120,110,180,.08);
   --win-bg:#eef0fb; --win-head1:#b6a8e8; --win-head2:#7d6bc4; --win-border:#8a7bd0;
-  --ink:#3a2f6a; --dim:#8a7fb5; --accent:#5bc98d; --accent2:#e86aa6; --warn:#f0a85a;
+  --ink:#3a2f6a; --dim:#6c60a0; --accent:#5bc98d; --accent2:#e86aa6; --warn:#f0a85a;
   --taskbar:#7d6bc4; --icon-label:#ffffff; --shadow:rgba(91,74,158,.4);
   --field:#faf8ff; --field-br:#b6a8e8;
   --pink-d:#e86aa6; --mint-d:#5bc98d; --lav:#b6a8e8; --lav-d:#7d6bc4; --lav-dd:#5b4a9e;
