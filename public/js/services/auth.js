@@ -8,6 +8,10 @@ import { currentUser, isAuthed, setUser, clearUser, genderFor, hasGenderFor, rem
 
 export const firebaseReady = () => !!firebaseNow();
 
+// Set while signOutUser runs: Firebase reports the sign-out through onAuthStateChanged too, and that path must
+// not start a second reload while signOutUser is still cleaning up.
+let signingOut = false;
+
 const nameOf = (u, email) => u.displayName || (u.email || email || "").split("@")[0];
 
 function onAuthChange(u) {
@@ -17,7 +21,7 @@ function onAuthChange(u) {
     startSync(u.uid);
   } else {
     stopSync();
-    if (!isAuthed()) return;
+    if (signingOut || !isAuthed()) return;
     // The session ended elsewhere (another tab, expiry) or this was a stale local copy. Reloading drops the
     // previous account's letters, chat and AI phrases that live only in memory.
     clearUser();
@@ -90,6 +94,7 @@ export function setGender(g) {
 // Pushes pending changes, signs out and reloads. The account's data leaves this device only when
 // the cloud is known to have it; otherwise it stays (and is never uploaded into another account).
 export async function signOutUser() {
+  signingOut = true;
   const synced = await flushSync();
   stopSync();
   const fb = firebaseNow();
