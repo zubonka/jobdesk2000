@@ -5,7 +5,7 @@ import { byId, html, setHtml, sleep } from "../core/dom.js";
 import { on, emit } from "../core/events.js";
 import { isAuthed, gender, userName } from "../data/user.js";
 import { allJobs, getJob } from "../data/jobs.js";
-import { getCV, hasCV, cvWordCount, setCV, clearCV, persona } from "../data/profile.js";
+import { getCV, hasCV, cvWordCount, setCV, clearCV, persona, MIN_CV_CHARS } from "../data/profile.js";
 import { specialtyName } from "../content/phrases.js";
 import { fairyName } from "../fairy/store.js";
 import { paintFairy, POSE } from "../fairy/render.js";
@@ -14,7 +14,6 @@ import { pdfToText } from "../services/pdf.js";
 import { onOpen } from "../ui/windows.js";
 import { say } from "../ui/clippy.js";
 
-const MIN_CV_CHARS = 40;
 const RETRY_WAITS = [8, 12]; // seconds before each automatic retry while Gemini is busy
 const WRITING = "Фея пише ✦...";
 

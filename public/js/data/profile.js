@@ -14,7 +14,9 @@ export const persona = {
 };
 
 export const getCV = () => cv;
-export const hasCV = () => cv.length > 40;
+// shortest CV text worth keeping; the messenger refuses anything shorter
+export const MIN_CV_CHARS = 40;
+export const hasCV = () => cv.length >= MIN_CV_CHARS;
 export const cvWordCount = () => (cv.trim() ? cv.trim().split(/\s+/).length : 0);
 
 // Returns false when the text does not fit into browser storage.

@@ -8,6 +8,8 @@ const { fetchPage, htmlToText, firstBlock, metaContent, findJobPosting, jobPosti
 const BUSY = "Сервіс зараз зайнятий ✦ спробуй ще раз за хвилину.";
 const NO_KEYS = "Не налаштовано ключ (GEMINI_API_KEY або GROQ_API_KEY)";
 const MINUTE = 60 * 1000;
+// shortest pasted vacancy or CV worth analysing; the client checks the same limit (public/js/services/api.js)
+const MIN_TEXT = 40;
 
 const EMP_OPTIONS = ["Full-time", "Part-time", "Project / Контракт", "Стажування", "Freelance", "Outsource"];
 const LOC_OPTIONS = ["Віддалено", "Гібрид", "Офіс"];
@@ -140,7 +142,7 @@ async function analyzeProfile(event, cors, body, started) {
   if (!user) return reply(cors, 401, { error: "Увійди, щоб фея проаналізувала профіль ✦", auth: true });
   if (!rateLimit("profile:" + user.uid, 20, 60 * MINUTE)) return reply(cors, 429, { error: "Забагато запитів ✦ спробуй пізніше" });
   const src = oneLine(str(body.cv || body.text, 20000)).slice(0, 6000);
-  if (src.length < 40) return reply(cors, 200, { error: "замало тексту" });
+  if (src.length < MIN_TEXT) return reply(cors, 200, { error: "замало тексту" });
 
   let r;
   try {
@@ -164,7 +166,7 @@ async function analyzeVacancy(event, cors, body, started) {
   let text;
   let fields = null;
 
-  if (pasted.length > 40) {
+  if (pasted.length >= MIN_TEXT) {
     text = oneLine(pasted).slice(0, 8000);
   } else {
     const url = str(body.url, 2000);

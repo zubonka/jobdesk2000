@@ -307,7 +307,9 @@ test("firstBlock returns the inner HTML of the first matching element, whatever 
 // Hostile pages used to make the extraction regexes quadratic (an unclosed <svg repeated 40 000 times took ~15 s).
 test("text extraction stays linear on pages built to make regexes backtrack", () => {
   const pages = ["<svg ".repeat(40000), "<!--".repeat(25000), "<a".repeat(50000), "<meta ".repeat(20000),
-    "<script type=application/ld+json>".repeat(6000), "<main ".repeat(30000)];
+    "<script type=application/ld+json>".repeat(6000), "<main ".repeat(30000),
+    // found by the review: one endless <meta full of matching attributes, and <script tags sharing one far ">"
+    "<meta " + 'property="og:title" '.repeat(26000), "<script a".repeat(110000) + ">"];
   for (const page of pages) {
     const started = Date.now();
     htmlToText(page);
@@ -316,4 +318,12 @@ test("text extraction stays linear on pages built to make regexes backtrack", ()
     firstBlock(page, "main");
     assert.ok(Date.now() - started < 500, page.slice(0, 12) + " took " + (Date.now() - started) + " ms");
   }
+});
+
+test("metaContent still reads ordinary tags after the linear rewrite", () => {
+  const html = '<head><meta charset="utf-8"><meta name="description" content="Опис &amp; більше"><meta property="og:title" content=\'Дизайнер\'></head>';
+  assert.equal(metaContent(html, "og:title"), "Дизайнер");
+  assert.equal(metaContent(html, "description"), "Опис & більше");
+  assert.equal(metaContent('<meta property="og:title" content="x"', "og:title"), "", "an unterminated tag is ignored");
+  assert.equal(metaContent('<meta property="og:title" <b>content="x">', "og:title"), "", "a tag cut by the next < is ignored");
 });

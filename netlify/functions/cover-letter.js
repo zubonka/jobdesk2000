@@ -108,6 +108,10 @@ exports.handler = async (event) => {
   const early = guard(event, cors);
   if (early) return early;
   const started = Date.now();
+  const b = parseBody(event);
+  if (!b) return reply(cors, 400, { error: "Некоректний запит" });
+  // A tab still open on the old single-file app sends {prompt} and no token: tell it to reload, not to sign in.
+  if (b.prompt && !b.action) return reply(cors, 400, { error: "Застаріла версія сторінки ✦ онови сторінку (Ctrl+F5)" });
 
   let user;
   try {
@@ -119,9 +123,6 @@ exports.handler = async (event) => {
   if (!user) return reply(cors, 401, { error: "Сесія завершилась ✦ увійди ще раз, щоб фея писала листи", auth: true });
   if (!rateLimit("letter:" + user.uid, 40, 60 * 60 * 1000)) return reply(cors, 429, { error: "Забагато листів за годину ✦ відпочинь трішки й спробуй пізніше" });
 
-  const b = parseBody(event);
-  if (!b) return reply(cors, 400, { error: "Некоректний запит" });
-  if (b.prompt && !b.action) return reply(cors, 400, { error: "Застаріла версія сторінки ✦ онови сторінку (Ctrl+F5)" });
   const input = readRequest(b);
   if (input.cv.length < 40) return reply(cors, 400, { error: "Спершу завантаж резюме ✦" });
   if (input.action === "revise" && (input.letter.length < 40 || !input.request)) return reply(cors, 400, { error: "Немає листа або правки" });

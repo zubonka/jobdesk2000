@@ -3,7 +3,7 @@
 
 import { byId } from "../core/dom.js";
 import { DEFAULT_PRIO, NONE, DEFAULT_TITLE, getJob, addJob, updateJob } from "../data/jobs.js";
-import { analyzeVacancy } from "../services/api.js";
+import { analyzeVacancy, MIN_VACANCY_TEXT } from "../services/api.js";
 import { registerDialog, openDialog, closeDialog } from "../ui/dialogs.js";
 import { say } from "../ui/clippy.js";
 import { POSE } from "../fairy/render.js";
@@ -98,7 +98,7 @@ function fillFromAnalysis(d) {
 
 async function analyze() {
   const text = byId("ev-paste").value.trim();
-  if (text.length < 40) { setMsg("Встав більше тексту ✦"); return; }
+  if (text.length < MIN_VACANCY_TEXT) { setMsg("Встав більше тексту ✦"); return; }
   const mine = session;
   const button = byId("ev-analyze");
   setMsg("Фея аналізує ✦...");

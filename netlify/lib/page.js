@@ -225,9 +225,23 @@ function htmlToText(html) {
     .trim();
 }
 
+// Walks the <meta tags one at a time. A tag ends at its ">" before the next "<"; one without it is skipped.
+// The segments between "<" never overlap, so the page is read once however it is built.
 function metaContent(html, key) {
-  const tag = (new RegExp("<meta\\b[^<>]*(?:property|name)=[\"']" + key + "[\"'][^<>]*>", "i").exec(html) || [])[0];
-  return tag ? decodeEntities((/content=["']([^"']*)["']/i.exec(tag) || [])[1] || "").trim() : "";
+  const lower = html.toLowerCase();
+  const attr = new RegExp("(?:property|name)=[\"']" + key + "[\"']", "i");
+  for (let i = findTag(lower, "meta", 0); i >= 0; i = findTag(lower, "meta", i + 1)) {
+    const next = lower.indexOf("<", i + 1);
+    const segment = lower.slice(i, next < 0 ? lower.length : next);
+    const close = segment.indexOf(">");
+    if (close >= 0) {
+      const tag = html.slice(i, i + close + 1);
+      if (attr.test(tag)) return decodeEntities((/content=["']([^"']*)["']/i.exec(tag) || [])[1] || "").trim();
+    }
+    if (next < 0) break;
+    i = next - 1;
+  }
+  return "";
 }
 
 // Some sites HTML-escape the JSON inside the script tag.
@@ -255,7 +269,8 @@ function* ldJsonBlocks(html) {
   for (let start = findTag(lower, "script", 0); start >= 0; start = findTag(lower, "script", start + 1)) {
     const open = lower.indexOf(">", start);
     if (open < 0) return;
-    if (!/type=["']?application\/ld\+json/.test(lower.slice(start, open))) continue;
+    // not JSON-LD: carry on after this tag, so no stretch of the page is searched twice
+    if (!/type=["']?application\/ld\+json/.test(lower.slice(start, Math.min(open, start + 500)))) { start = open; continue; }
     const end = lower.indexOf("</script", open);
     if (end < 0) return;
     yield html.slice(open + 1, end);

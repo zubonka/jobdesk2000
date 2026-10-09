@@ -146,7 +146,7 @@ test("busy engines: the original auto-retry wording with retry:true", async () =
 
 test("Groq writes the letter when Gemini is down", async () => {
   stubFetch({ gemini: () => overloaded(), groq: () => groqReply(LETTER) });
-  assert.deepEqual(bodyOf(await write()), { text: LETTER, model: "groq:llama-3.3-70b-versatile" });
+  assert.deepEqual(bodyOf(await write()), { text: LETTER, model: "groq:openai/gpt-oss-120b" });
 });
 
 test("empty answers: the original safety-filter wording, without retry", async () => {
@@ -172,4 +172,11 @@ test("no API keys: the original configuration error", async (t) => {
   const res = await write();
   assert.equal(res.statusCode, 500);
   assert.deepEqual(bodyOf(res), { error: "Не налаштовано ключ (GEMINI_API_KEY або GROQ_API_KEY) у Netlify" });
+});
+
+test("an old single-file page (prompt, no token) is told to reload, not to sign in", async () => {
+  stubFetch({});
+  const res = await handler(event({ body: { prompt: "write me a letter" } }));
+  assert.equal(res.statusCode, 400);
+  assert.match(bodyOf(res).error, /Застаріла версія сторінки/);
 });

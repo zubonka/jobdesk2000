@@ -23,7 +23,11 @@ const MODELS = {
   fast: modelsFromEnv("GEMINI_MODELS_FAST", ["gemini-3.5-flash-lite", "gemini-2.5-flash-lite", "gemini-2.5-flash"]),
   write: modelsFromEnv("GEMINI_MODELS_WRITE", ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash", "gemini-2.5-flash-lite"]),
 };
-const GROQ_MODELS = modelsFromEnv("GROQ_MODELS", ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]);
+// Groq retired the Llama 3.x models on 2026-08-16 (free and developer tiers); gpt-oss is its recommended successor.
+const GROQ_MODELS = modelsFromEnv("GROQ_MODELS", ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]);
+// Reasoning models spend completion tokens on thinking first, so they get extra room and the lowest effort.
+const GROQ_REASONING_EXTRA = 1024;
+const isGroqReasoning = (model) => /gpt-oss|qwen3/i.test(model);
 
 // Thinking is slow and eats maxOutputTokens (it used to cut answers short), so keep it minimal.
 // 2.5 Flash switches it off with thinkingBudget 0; 3.x takes thinkingLevel, and only Flash-Lite accepts "minimal".
@@ -44,6 +48,9 @@ class AIError extends Error {
 }
 
 const isBusyStatus = (status) => status === 429 || status >= 500;
+// "rate" alone would match "generateContent" in Gemini's not-found message
+const BUSY_TEXT = /overload|quota|exhausted|unavailable|rate.?limit/i;
+const BUSY_CODES = ["RESOURCE_EXHAUSTED", "UNAVAILABLE", "DEADLINE_EXCEEDED"];
 
 async function askGemini(model, opts, key, ms) {
   const config = { temperature: opts.temperature ?? 0.4, maxOutputTokens: opts.maxTokens || 1024 };
@@ -61,9 +68,10 @@ async function askGemini(model, opts, key, ms) {
   }, ms);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const msg = (data.error && data.error.message) || "";
+    const err = data.error || {};
+    const msg = err.message || "";
     console.log(`gemini ${model} HTTP ${res.status}: ${msg.slice(0, 200)}`);
-    return { failure: isBusyStatus(res.status) || /overload|quota|exhausted|unavailable|rate/i.test(msg) ? "busy" : "failed" };
+    return { failure: isBusyStatus(res.status) || BUSY_CODES.includes(err.status) || BUSY_TEXT.test(msg) ? "busy" : "failed" };
   }
   const cand = (data.candidates || [])[0] || {};
   const text = ((cand.content || {}).parts || []).filter((p) => !p.thought).map((p) => p.text || "").join("").trim();
@@ -79,15 +87,17 @@ async function askGroq(model, opts, key, ms) {
   const messages = [];
   if (opts.system) messages.push({ role: "system", content: opts.system });
   messages.push({ role: "user", content: opts.user + (opts.schema ? "\n\nПоверни ВИКЛЮЧНО валідний JSON-обʼєкт." : "") });
+  const reasoning = isGroqReasoning(model);
   const res = await fetchTimeout(GROQ_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: "Bearer " + key },
     body: JSON.stringify({
       model,
       temperature: opts.temperature ?? 0.4,
-      max_tokens: opts.maxTokens || 1024,
+      max_tokens: (opts.maxTokens || 1024) + (reasoning ? GROQ_REASONING_EXTRA : 0),
       messages,
       response_format: opts.schema ? { type: "json_object" } : undefined,
+      ...(reasoning ? { reasoning_effort: "low", include_reasoning: false } : {}),
     }),
   }, ms);
   const data = await res.json().catch(() => ({}));

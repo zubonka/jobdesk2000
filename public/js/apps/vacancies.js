@@ -7,7 +7,7 @@ import { STATUS_KEYS, statusLabel } from "../data/statuses.js";
 import { gender, isAuthed } from "../data/user.js";
 import { hasCV, persona } from "../data/profile.js";
 import { detectSpecialty } from "../content/phrases.js";
-import { analyzeVacancy, analyzeProfile } from "../services/api.js";
+import { analyzeVacancy, analyzeProfile, MIN_VACANCY_TEXT } from "../services/api.js";
 import { say, reactToStatus } from "../ui/clippy.js";
 import { POSE } from "../fairy/render.js";
 import { openEditVacancy, openNewVacancy } from "./edit-vacancy.js";
@@ -184,7 +184,7 @@ async function addFromUrl() {
 
 async function addFromText() {
   const text = byId("a-paste").value.trim();
-  if (text.length < 40) { setMsg("Встав більше тексту вакансії ✦"); return; }
+  if (text.length < MIN_VACANCY_TEXT) { setMsg("Встав більше тексту вакансії ✦"); return; }
   setMsg("Фея аналізує текст ✦...");
   let d;
   try { d = await analyzeWith(byId("a-paste-go"), { text }); } catch (err) { setMsg("Не вдалося розібрати ✦ " + err.message); return; }

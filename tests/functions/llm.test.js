@@ -62,8 +62,8 @@ test("Gemini 503 moves on to the next model", async () => {
 test("when every Gemini model fails, Groq answers", async () => {
   const calls = stubFetch({ gemini: () => overloaded(), groq: () => groqReply("from groq") });
   const r = await ask({ kind: "write" });
-  assert.deepEqual(r, { text: "from groq", model: "groq:llama-3.3-70b-versatile", truncated: false });
-  assert.deepEqual(calls.map((c) => c.engine + ":" + c.model), [...MODELS.write.map((m) => "gemini:" + m), "groq:llama-3.3-70b-versatile"]);
+  assert.deepEqual(r, { text: "from groq", model: "groq:openai/gpt-oss-120b", truncated: false });
+  assert.deepEqual(calls.map((c) => c.engine + ":" + c.model), [...MODELS.write.map((m) => "gemini:" + m), "groq:openai/gpt-oss-120b"]);
 });
 
 test("Gemini request: key in a header, system instruction, thinking config, sampling settings", async () => {
@@ -196,4 +196,23 @@ test("parseJSONLoose copes with fences and surrounding words", () => {
   assert.equal(parseJSONLoose('{"a":'), null);
   assert.equal(parseJSONLoose(""), null);
   assert.equal(parseJSONLoose(undefined), null);
+});
+
+test("Groq reasoning models get the lowest effort, no reasoning text and extra token room", async () => {
+  const calls = stubFetch({ gemini: () => overloaded(), groq: () => groqReply("from groq") });
+  await ask({ maxTokens: 500 });
+  const groq = calls.find((c) => c.engine === "groq");
+  assert.equal(groq.model, "openai/gpt-oss-120b");
+  assert.equal(groq.body.reasoning_effort, "low");
+  assert.equal(groq.body.include_reasoning, false);
+  assert.equal(groq.body.max_tokens, 500 + 1024);
+});
+
+// Gemini's 404 says "... is not supported for generateContent": "rate" inside that word is not a rate limit.
+test("a retired or misspelt Gemini model counts as failed, not busy", async () => {
+  const notFound = () => json(404, { error: { code: 404, status: "NOT_FOUND", message: "models/gemini-x is not found for API version v1beta, or is not supported for generateContent." } });
+  stubFetch({ gemini: () => notFound(), groq: () => json(400, { error: { message: "bad" } }) });
+  await assert.rejects(ask(), (err) => err instanceof AIError && err.reason === "failed");
+  stubFetch({ gemini: () => json(400, { error: { status: "RESOURCE_EXHAUSTED", message: "out of tokens" } }), groq: () => json(400, { error: {} }) });
+  await assert.rejects(ask(), (err) => err.reason === "busy");
 });

@@ -3,6 +3,8 @@
 import { idToken } from "./auth.js";
 
 const BUSY = "Сервіс зараз зайнятий ✦ спробуй ще раз за хвилину.";
+// shortest pasted vacancy text the server analyses (netlify/functions/analyze-vacancy.js, MIN_TEXT)
+export const MIN_VACANCY_TEXT = 40;
 
 export class ApiError extends Error {
   // retry: the server was busy, trying again later may work; auth: the user must sign in again

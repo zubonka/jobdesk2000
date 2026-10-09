@@ -134,7 +134,7 @@ Set them in Netlify (Site configuration -> Environment variables) or locally in 
 | `GROQ_API_KEY` | none | fallback engine, used when every Gemini model failed; at least one of the two keys is required |
 | `GEMINI_MODELS_FAST` | `gemini-3.5-flash-lite,gemini-2.5-flash-lite,gemini-2.5-flash` | models, in order, for vacancy and profile analysis |
 | `GEMINI_MODELS_WRITE` | `gemini-3.5-flash,gemini-3.5-flash-lite,gemini-2.5-flash,gemini-2.5-flash-lite` | models, in order, for cover letters |
-| `GROQ_MODELS` | `llama-3.3-70b-versatile,llama-3.1-8b-instant` | Groq models, in order |
+| `GROQ_MODELS` | `openai/gpt-oss-120b,openai/gpt-oss-20b` | Groq models, in order (Groq retired the Llama 3.x models on 2026-08-16; reasoning models get `reasoning_effort: "low"`) |
 | `ALLOWED_ORIGINS` | none | extra origins allowed to call the functions, comma-separated (a second domain, for example) |
 | `FIREBASE_PROJECT_ID` | `jobdesk2000` | the project whose ID tokens are accepted |
 
