@@ -1,0 +1,54 @@
+# docker compose up app                          dev server on http://localhost:8888 (mock AI without keys in .env)
+# docker compose run --rm test                   unit tests
+# docker compose --profile netlify run --rm netlify   offline Netlify build: bundles the functions with esbuild
+name: jobdesk2000
+
+services:
+  app:
+    image: node:22-alpine
+    init: true
+    working_dir: /app
+    volumes:
+      - .:/app:ro
+    command: node scripts/dev-server.js
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8888"
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      # loopback only: with real keys in .env the server must not be reachable from the network
+      - "127.0.0.1:8888:8888"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8888/').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  test:
+    image: node:22-alpine
+    init: true
+    working_dir: /app
+    volumes:
+      - .:/app:ro
+    command: npm test
+    profiles: [test]
+
+  netlify:
+    image: node:22
+    init: true
+    working_dir: /app
+    volumes:
+      - .:/app
+      - npm-cache:/root/.npm
+    environment:
+      # CI mode: netlify-cli asks no questions and sends no telemetry
+      CI: "true"
+    # a failed require inside netlify/ fails the esbuild step, so a green build proves the bundles resolve
+    command: sh -c "npx --yes netlify-cli@27.8.1 build --offline && ls -l .netlify/functions"
+    profiles: [netlify]
+
+volumes:
+  npm-cache:
