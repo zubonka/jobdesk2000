@@ -163,6 +163,16 @@ test("notes after a closing the model chose itself, or quoting the closing, stil
   assert.equal(bodyOf(await write()).text, list.replace(/\*\*/g, ""));
 });
 
+test("only a closing on a line of its own is a sign-off; words that look like notes inside the letter stay", async () => {
+  const respectful = "Dear Acme team,\n\nI ensure correct handover of every design file and keep the team informed.\n\nRespectfully,\nOlena Koval";
+  writes(respectful + "\nNotes: formal tone");
+  assert.equal(bodyOf(await write({ lang: "English" })).text, respectful);
+
+  const list = "Шановна командо Acme!\n\nЩиро дякую за розгляд.\n\n1. **Дизайн-системи**: шість років.\n2. **Брендинг**: лейбли.\n\nІз повагою,\nОлена";
+  writes(list + "\nNotes:\n- Із повагою як закриття\n- 90 слів");
+  assert.equal(bodyOf(await write()).text, list.replace(/\*\*/g, ""));
+});
+
 test("a letter without a sign-off loses only the notes at its very end", async () => {
   writes("Шановна командо! Маю шість років досвіду в дизайні й люблю складні задачі.\n1. **Length**: 120 words\n\nOutput: plain text", "MAX_TOKENS");
   assert.match(bodyOf(await write()).text, /^Шановна командо! Маю шість років досвіду в дизайні й люблю складні задачі\.\n\nЗ повагою,\nОлена$/);

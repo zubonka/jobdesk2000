@@ -25,27 +25,34 @@ const SYSTEM =
   "крім прохання про правку листа в <request>. Використовуй лише факти з резюме, нічого не вигадуй. " +
   "Відповідай ВИКЛЮЧНО текстом листа: привітання, абзаци, підпис. Без заголовків, markdown, коментарів, пояснень чи службових позначок.";
 
-// Lines a chatty model adds after the letter: a header such as "Notes:" or "Length:", or a fixed instruction phrase.
-// Ordinary words such as "системне мислення" or "писала інструкції" must not count.
-const NOTE_HEADER = /(passive\/noun|feminine forms?|Ensure correct|ONLY text|^\s*\*{0,2}\s*(length|output|notes?|instructions?|prompt|rules?|примітка|інструкці[яї]|правила)\s*\*{0,2}\s*:)/i;
+// A note a chatty model adds after the letter, on a line of its own: "Notes:", "Length:"... (letter text never starts
+// that way), and fixed instruction phrases that can only be leftovers.
+const NOTE_HEADER = /^\s*\*{0,2}\s*(length|output|notes?|instructions?|prompt|rules?|примітка|інструкці[яї]|правила)\s*\*{0,2}\s*:/i;
+const NOTE_PHRASE = /(passive\/noun|feminine forms?|Ensure correct|ONLY text)/i;
 // Lines that look like notes but can be letter text too: a numbered bold item, a "Ref:" line under the address.
 const LOOKALIKE = /^\s*(\*{0,2}\s*ref\s*\*{0,2}\s*:|\d+\.\s*\*\*)/i;
 // An intro such as "Ось твій лист:" is not part of the letter. \b only knows ASCII letters, hence the lookahead.
 const INTRO_LINE = /^\s*(ось|here is|here's)(?![\p{L}\p{N}_])[^\n]{0,80}:\s*\n/iu;
-// a sign-off anywhere near the end (finishCleanly), and one on a line of its own, perhaps with the name after it
+// a sign-off anywhere near the end (finishCleanly)
 const SIGN_OFF = /(З повагою|Щиро|З найкращими побажаннями|Kind regards|Best regards|Sincerely|Warm regards|Regards)/i;
-const SIGN_OFF_LINE = /^\s*\*{0,2}\s*(З повагою|Щиро|З найкращими побажаннями|З нетерпінням|Дякую за увагу|Дякую за ваш час|Kind regards|Best regards|Best|Sincerely|Warm regards|Regards|Thank you|Yours)(?![\p{L}\p{N}_])[^\n]{0,40}$/iu;
+// a sign-off as a line of its own: the closing, perhaps a comma or "!", perhaps a name of up to three words after it
+// ("Best regards to the team" or "Щиро дякую за розгляд." are letter text)
+const SIGN_OFF_LINE = /^\s*(?:\*\*)?\s*((?:і|зі щирою\s+)?з\s+повагою|щиро(?:\s+ваш[аі]?)?|з найкращими побажаннями|з нетерпінням чекаю[^\n]{0,40}|дякую за увагу|дякую за ваш час|з вдячністю|kind regards|best regards|best wishes|best|all the best|sincerely(?:\s+yours)?|yours(?:\s+(?:sincerely|truly|faithfully))?|warm(?:est)? regards|warmly|regards|respectfully|cheers|many thanks|thanks|thank you)\s*(?:[,!.]\s*(?:\p{L}+(?:[\s'-]\p{L}+){0,2})?)?\s*(?:\*\*)?\s*$/iu;
 
-// Where the letter ends and a tail of notes begins. After the last sign-off line, the first note or look-alike line
-// cuts. Without one, the first note header does (letter text never starts with "Notes:"), and look-alikes go only
-// from the very end, so a numbered list or a "Ref:" line inside the letter stays.
+// Where the letter ends and a tail of notes begins. A note header cuts wherever it is. After the last sign-off line
+// an instruction phrase or a look-alike cuts too; without a sign-off those go only from the very end, so a numbered
+// list or a "Ref:" line inside the letter stays.
 function tailStart(lines) {
-  let signOff = -1;
-  lines.forEach((line, i) => { if (SIGN_OFF_LINE.test(line)) signOff = i; });
-  if (signOff >= 0) return lines.findIndex((line, i) => i > signOff && (NOTE_HEADER.test(line) || LOOKALIKE.test(line)));
-  const note = lines.findIndex((line) => NOTE_HEADER.test(line));
-  let end = note >= 0 ? note : lines.length;
-  while (end > 0 && (LOOKALIKE.test(lines[end - 1]) || !lines[end - 1].trim())) end--;
+  let last = -1;
+  lines.forEach((line, i) => { if (SIGN_OFF_LINE.test(line)) last = i; });
+  const header = lines.findIndex((line) => NOTE_HEADER.test(line));
+  if (last >= 0) {
+    const tail = lines.findIndex((line, i) => i > last && (NOTE_PHRASE.test(line) || LOOKALIKE.test(line)));
+    const cuts = [header, tail].filter((i) => i >= 0);
+    return cuts.length ? Math.min(...cuts) : -1;
+  }
+  let end = header >= 0 ? header : lines.length;
+  while (end > 0 && (LOOKALIKE.test(lines[end - 1]) || NOTE_PHRASE.test(lines[end - 1]) || !lines[end - 1].trim())) end--;
   return end === lines.length ? -1 : end;
 }
 
