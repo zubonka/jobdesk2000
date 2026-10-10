@@ -182,13 +182,14 @@ const EMULATOR_META = process.env.FIREBASE_EMULATORS === "1"
   ? `<meta name="jobdesk-emulators" content="${EMULATOR_BROWSER_HOST}">`
   : "";
 
-// The content policy allows the real Firebase hosts only; with the emulators the page also talks to them.
+// The content policy allows the real Firebase hosts only; with the emulators the page talks to them instead,
+// and on iOS the Auth emulator also serves the sign-in iframe that firebaseapp.com serves in production.
 function devHeaders(urlPath) {
   const headers = headersFor(urlPath);
   const name = "Content-Security-Policy-Report-Only";
   if (EMULATOR_META && headers[name]) {
     const emulators = [9099, 8086].map((port) => `http://${EMULATOR_BROWSER_HOST}:${port}`).join(" ");
-    headers[name] = headers[name].replace("connect-src ", `connect-src ${emulators} `);
+    headers[name] = headers[name].replace("connect-src ", `connect-src ${emulators} `).replace("frame-src ", `frame-src ${emulators} `);
   }
   return headers;
 }

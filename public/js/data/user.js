@@ -1,7 +1,7 @@
 // The signed-in user as the UI knows it. Firebase is the source of truth (see services/auth.js);
 // this copy lives in localStorage so the desktop renders before Firebase has loaded.
 
-import { KEYS, getJSON, setJSON, remove } from "../core/storage.js";
+import { KEYS, getJSON, getObject, setJSON, remove } from "../core/storage.js";
 import { emit } from "../core/events.js";
 
 let user = getJSON(KEYS.user, null);
@@ -43,17 +43,17 @@ export function gv(fem, masc, neu, nb) {
 
 // Firebase profiles have no gender field, so it is remembered per uid on this device.
 export function genderFor(uid) {
-  const map = getJSON(KEYS.genders, {}) || {};
+  const map = getObject(KEYS.genders);
   return map[uid] || "n";
 }
 
 export function hasGenderFor(uid) {
-  const map = getJSON(KEYS.genders, {}) || {};
+  const map = getObject(KEYS.genders);
   return !!map[uid];
 }
 
 export function rememberGender(uid, g) {
-  const map = getJSON(KEYS.genders, {}) || {};
+  const map = getObject(KEYS.genders);
   map[uid] = g;
   setJSON(KEYS.genders, map);
 }

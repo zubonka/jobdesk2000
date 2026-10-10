@@ -243,3 +243,50 @@ test("importJobs adds only the missing vacancies and keeps the ones already here
   assert.equal(jobs.importJobs(backup, progress), 0);
   assert.equal(jobs.importJobs("not a list", null), 0);
 });
+
+test("a null or hand-edited progress entry loads as an empty one instead of stopping the app", () => {
+  startWith({
+    [KEYS.jobs]: [{ prio: "Податися", company: "A", title: "One" }, { prio: "Податися", company: "B", title: "Two" }, { prio: "Податися", company: "C", title: "Three" }],
+    [KEYS.progress]: { "A|One": null, "B|Two": "junk", "C|Three": { status: "Оффер", date: 42, note: ["x"] } },
+  });
+  assert.deepEqual(jobs.allJobs().map((j) => [j.status, j.date, j.note]), [["not_applied", "", ""], ["not_applied", "", ""], ["offer", "", ""]]);
+  assert.equal(jobs.importJobs([{ prio: "Податися", company: "D", title: "Four" }], { "D|Four": null }), 1);
+});
+
+test("a \"|\" inside a new name is written as \"¦\", so two different vacancies never share an id", () => {
+  const a = jobs.addJob({ company: "Acme|Kyiv", title: "Designer" });
+  const b = jobs.addJob({ company: "Acme", title: "Kyiv|Designer" });
+  assert.ok(a && b);
+  assert.notEqual(a.id, b.id);
+  assert.equal(a.company, "Acme¦Kyiv");
+});
+
+test("old data with two different vacancies joining to one id keeps both, the second written apart", () => {
+  startWith({
+    [KEYS.jobs]: [{ prio: "Податися", company: "Acme|Kyiv", title: "Designer" }, { prio: "Податися", company: "Acme", title: "Kyiv|Designer" }, { prio: "Податися", company: "Acme|Kyiv", title: "Designer" }],
+    [KEYS.progress]: { "Acme|Kyiv|Designer": { status: "Оффер", date: "", deadline: "", note: "спільна" } },
+  });
+  const list = jobs.allJobs();
+  assert.equal(list.length, 2, "the third entry is a true duplicate of the first");
+  assert.deepEqual(list.map((j) => [j.company, j.title, j.status]), [["Acme|Kyiv", "Designer", "offer"], ["Acme", "Kyiv¦Designer", "offer"]]);
+  assert.equal(jobs.countVacancies([{ company: "A", title: "B" }, { company: "A", title: "B" }, null, "x", 7, { company: "C" }]), 2);
+});
+
+test("an undone reset follows a vacancy renamed meanwhile", () => {
+  const { id } = jobs.addJob({ company: "Acme", title: "Designer" });
+  jobs.setJobField(id, "status", "interview1");
+  const before = jobs.resetProgress();
+  jobs.updateJob(id, { title: "Lead Designer" });
+  jobs.restoreProgress(before);
+  assert.equal(jobs.getJob("Acme|Lead Designer").status, "interview1");
+});
+
+test("stored maps that are not plain objects read as empty ones", async () => {
+  const { getObject } = await import("../../public/js/core/storage.js");
+  for (const bad of ["5", "true", "[]", "null", "\"x\"", "not json"]) {
+    storage.setItem("jobdesk2000_test", bad);
+    assert.deepEqual(getObject("jobdesk2000_test"), {}, bad);
+  }
+  storage.setItem("jobdesk2000_test", '{"a":1}');
+  assert.deepEqual(getObject("jobdesk2000_test"), { a: 1 });
+});

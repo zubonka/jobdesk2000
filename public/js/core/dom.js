@@ -41,6 +41,9 @@ export const safeUrl = (url) => {
   return /^https?:\/\//i.test(s) ? s : "#";
 };
 
+// A picture stored as a data: URL (the wallpaper); anything else, a remote address above all, is refused.
+export const isPictureData = (value) => typeof value === "string" && /^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+=*$/.test(value);
+
 // Local date as YYYY-MM-DD (toISOString would give the UTC date).
 export function todayISO() {
   const d = new Date();

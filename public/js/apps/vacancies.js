@@ -48,7 +48,8 @@ function fillSelect(sel, allLabel, options) {
   if (options.some(([value]) => value === current)) sel.value = current;
 }
 
-const distinct = (key) => [...new Set(allJobs().map((job) => job[key]))].filter((value) => value !== NONE).sort();
+const byUkrainian = new Intl.Collator("uk").compare;
+const distinct = (key) => [...new Set(allJobs().map((job) => job[key]))].filter((value) => value !== NONE).sort(byUkrainian);
 
 function fillFilters() {
   const g = gender();
@@ -57,7 +58,9 @@ function fillFilters() {
   fillSelect(byId("f-status"), "Всі статуси", STATUS_KEYS.map((key) => [key, statusLabel(key, g)]));
 }
 
-const lower = (text) => text.toLocaleLowerCase("uk");
+// one form for comparing: composed Unicode (a PDF from macOS gives decomposed letters), lower case,
+// and one apostrophe for the four ways Ukrainian words get typed (ʼ ' ’ `)
+const lower = (text) => text.normalize("NFC").toLocaleLowerCase("uk").replace(/[ʼ'’‘`]/g, "'");
 
 function visibleJobs() {
   const active = FILTERS.map(([id, key]) => [key, byId(id).value]).filter(([, value]) => value);

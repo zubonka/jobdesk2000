@@ -69,3 +69,8 @@ test("the streak counts weeks in a row and forgives a week that has only just be
 test("weeksText picks the Ukrainian plural form too", () => {
   assert.deepEqual([1, 2, 5, 11, 21, 24].map(weeksText), ["1 тиждень", "2 тижні", "5 тижнів", "11 тижнів", "21 тиждень", "24 тижні"]);
 });
+
+test("an impossible calendar day is not a date", () => {
+  for (const bad of ["2026-09-43", "2026-02-30", "2026-13-01", "2026-00-10"]) assert.equal(daysBetween("2026-10-10", bad), null, bad);
+  assert.equal(daysBetween("2028-02-28", "2028-02-29"), 1, "a leap day is real");
+});

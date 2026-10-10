@@ -1,7 +1,7 @@
 // Vacancies: the in-memory list, its storage format and every change to it.
 // Each change is saved immediately and announced with the "jobs" event.
 
-import { KEYS, getJSON, setJSON } from "../core/storage.js";
+import { KEYS, getJSON, getObject, setJSON } from "../core/storage.js";
 import { emit } from "../core/events.js";
 import { todayISO } from "../core/dom.js";
 import { statusKeyOf, statusLabel } from "./statuses.js";
@@ -31,21 +31,11 @@ export function normalizeUrl(value) {
   return "#";
 }
 
-function fromStorage(raw) {
-  // company/title are kept byte for byte: they form the id that keys the saved progress
-  const company = raw.company == null || raw.company === "" ? NONE : String(raw.company);
-  const title = raw.title == null || raw.title === "" ? DEFAULT_TITLE : String(raw.title);
-  return {
-    id: jobId(company, title),
-    prio: PRIORITIES.includes(raw.prio) ? raw.prio : DEFAULT_PRIO,
-    company, title,
-    field: text(raw.field, NONE), emp: text(raw.emp, NONE), loc: text(raw.loc, NONE), salary: text(raw.salary, NONE),
-    url: normalizeUrl(raw.url),
-  };
-}
+// "|" joins company and title into the id, so inside a name it is written as "¦": otherwise "A|B" + "C" and
+// "A" + "B|C" would be one vacancy.
+const noBar = (name) => name.replace(/\|/g, "¦");
 
-function fromInput(fields) {
-  const company = text(fields.company, NONE), title = text(fields.title, DEFAULT_TITLE);
+function vacancy(company, title, fields) {
   return {
     id: jobId(company, title),
     prio: PRIORITIES.includes(fields.prio) ? fields.prio : DEFAULT_PRIO,
@@ -55,23 +45,49 @@ function fromInput(fields) {
   };
 }
 
+// company/title are kept byte for byte: they form the id that keys the saved progress
+function fromStorage(raw) {
+  const company = raw.company == null || raw.company === "" ? NONE : String(raw.company);
+  const title = raw.title == null || raw.title === "" ? DEFAULT_TITLE : String(raw.title);
+  return vacancy(company, title, raw);
+}
+
+const fromInput = (fields) => vacancy(noBar(text(fields.company, NONE)), noBar(text(fields.title, DEFAULT_TITLE)), fields);
+
+// A stored vacancy whose id is taken by a different one (an old name with "|"): written apart, it stays listed.
+function apartFrom(taken, job, raw) {
+  if (!taken || (taken.company === job.company && taken.title === job.title)) return taken ? null : job;
+  const apart = vacancy(noBar(job.company), noBar(job.title), raw);
+  return apart.id === job.id ? null : apart;
+}
+
+const isVacancy = (raw) => !!raw && typeof raw === "object" && !Array.isArray(raw);
+
+// How many different vacancies a stored list holds.
+export const countVacancies = (list) => new Set((Array.isArray(list) ? list : []).filter(isVacancy)
+  .map((raw) => { const job = fromStorage(raw); return job.company + "\u0000" + job.title; })).size;
+
 const str = (value) => (typeof value === "string" ? value : "");
 
-// A stored vacancy with its entry of the progress map.
-const withProgress = (job, p = {}) => ({ ...job, status: statusKeyOf(p.status), date: str(p.date), deadline: str(p.deadline), note: str(p.note) });
+// A stored vacancy with its entry of the progress map (missing, null or hand-edited entries count as empty).
+function withProgress(job, entry) {
+  const p = entry && typeof entry === "object" ? entry : {};
+  return { ...job, status: statusKeyOf(p.status), date: str(p.date), deadline: str(p.deadline), note: str(p.note) };
+}
 
 export function loadJobs() {
   const list = getJSON(KEYS.jobs, []);
-  const progress = getJSON(KEYS.progress, {}) || {};
-  collapsed = getJSON(KEYS.collapsed, {}) || {};
-  const seen = new Set();
+  const progress = getObject(KEYS.progress);
+  collapsed = getObject(KEYS.collapsed);
+  const seen = new Map(); // id -> the vacancy listed under it
   jobs = [];
   for (const raw of Array.isArray(list) ? list : []) {
-    if (!raw || typeof raw !== "object") continue;
-    const job = fromStorage(raw);
-    if (seen.has(job.id)) continue;
-    seen.add(job.id);
-    jobs.push(withProgress(job, progress[job.id]));
+    if (!isVacancy(raw)) continue;
+    const stored = fromStorage(raw);
+    const job = apartFrom(seen.get(stored.id), stored, raw);
+    if (!job || seen.has(job.id)) continue; // a second copy of the same vacancy
+    seen.set(job.id, job);
+    jobs.push(withProgress(job, progress[stored.id]));
   }
 }
 
@@ -144,9 +160,9 @@ export function restoreJob({ job, index }) {
 }
 
 // Clears statuses, application dates and notes; deadlines and the vacancies themselves stay.
-// Returns what restoreProgress() needs to undo it.
+// Returns what restoreProgress() needs to undo it (it follows the vacancies, so a rename meanwhile is fine).
 export function resetProgress() {
-  const before = jobs.map(({ id, status, date, note }) => ({ id, status, date, note }));
+  const before = jobs.map((job) => ({ job, status: job.status, date: job.date, note: job.note }));
   for (const j of jobs) Object.assign(j, { status: "not_applied", date: "", note: "" });
   save();
   emit("jobs", { type: "reset" });
@@ -154,10 +170,7 @@ export function resetProgress() {
 }
 
 export function restoreProgress(before) {
-  for (const { id, ...fields } of before) {
-    const job = getJob(id);
-    if (job) Object.assign(job, fields);
-  }
+  for (const { job, ...fields } of before) if (jobs.includes(job)) Object.assign(job, fields);
   save();
   emit("jobs", { type: "reset" });
 }
@@ -168,10 +181,11 @@ export function importJobs(list, progress) {
   const map = progress && typeof progress === "object" ? progress : {};
   let added = 0;
   for (const raw of Array.isArray(list) ? list : []) {
-    if (!raw || typeof raw !== "object") continue;
-    const job = fromStorage(raw);
-    if (getJob(job.id)) continue;
-    jobs.push(withProgress(job, map[job.id]));
+    if (!isVacancy(raw)) continue;
+    const stored = fromStorage(raw);
+    const job = apartFrom(getJob(stored.id), stored, raw);
+    if (!job || getJob(job.id)) continue;
+    jobs.push(withProgress(job, map[stored.id]));
     added++;
   }
   if (added) {

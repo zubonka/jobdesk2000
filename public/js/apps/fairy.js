@@ -1,7 +1,7 @@
 // "Моя Фея" window: the fairy's type, name and colours, plus the desktop wallpaper
 // (old TV effect) that the fairy's colours can be matched to.
 
-import { byId, qsa } from "../core/dom.js";
+import { byId, qsa, isPictureData } from "../core/dom.js";
 import { on, emit } from "../core/events.js";
 import { KEYS, getRaw, setRaw, remove } from "../core/storage.js";
 import {
@@ -18,7 +18,8 @@ const PALETTE_SIZE = 6;
 const SAMPLE_SIZE = 64;
 const MIN_COLOUR_DISTANCE = 60;
 
-const storedWall = () => getRaw(KEYS.wallpaper) || "";
+// only a picture of our own: a wallpaper pointing anywhere else would make the page call that server
+const storedWall = () => { const wall = getRaw(KEYS.wallpaper) || ""; return isPictureData(wall) ? wall : ""; };
 
 function renderFairy() {
   const name = fairyName();

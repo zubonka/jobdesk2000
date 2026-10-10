@@ -12,6 +12,7 @@
 //   menu       a START menu command was chosen (detail: "backup" | "restore" | "table")
 //   state      local data was replaced (from the cloud, another tab or a backup); every module reloads from storage
 //   firebase   Firebase finished loading
+//   storage-full  the browser refused to save (detail: the storage key); main.js tells the user
 
 const handlers = new Map();
 

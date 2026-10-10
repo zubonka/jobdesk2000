@@ -1,6 +1,8 @@
 // localStorage access. Keys and value formats are shared with the cloud copy (Firestore users/<uid>)
 // and with older versions of the app, so they must not change.
 
+import { emit } from "./events.js";
+
 export const KEYS = {
   progress: "jobdesk2000_v1",        // { "<company>|<title>": { status: <label>, date, deadline, note } }
   jobs: "jobdesk2000_added_v1",      // [{ prio, company, title, field, emp, loc, salary, url }]
@@ -42,9 +44,9 @@ export function getRaw(key) {
   try { return localStorage.getItem(key); } catch (e) { return null; }
 }
 
-// Returns false when the browser refuses the write (quota, private mode).
+// Returns false when the browser refuses the write (quota, private mode); the "storage-full" event tells the user.
 export function setRaw(key, value) {
-  try { localStorage.setItem(key, value); } catch (e) { return false; }
+  try { localStorage.setItem(key, value); } catch (e) { emit("storage-full", key); return false; }
   notify(key);
   return true;
 }
@@ -61,6 +63,12 @@ export function getJSON(key, fallback) {
 }
 
 export const setJSON = (key, value) => setRaw(key, JSON.stringify(value));
+
+// A stored { key: value } map; anything else (a hand edit, an old bug) reads as an empty map.
+export function getObject(key) {
+  const value = getJSON(key, null);
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
 
 // All synced keys with their raw string values.
 export function syncedEntries() {

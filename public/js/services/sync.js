@@ -10,7 +10,7 @@
 // - Applying a cloud copy never writes back, so devices do not echo each other's updates.
 // - A device that holds another account's data never uploads it; guest vacancies join the account they sign in to.
 
-import { KEYS, SYNC_PREFIX, getRaw, getJSON, setRaw, setJSON, remove, silently, onWrite, syncedEntries } from "../core/storage.js";
+import { KEYS, SYNC_PREFIX, getRaw, getObject, setRaw, setJSON, remove, silently, onWrite, syncedEntries } from "../core/storage.js";
 import { loadFirebase, firebaseNow } from "./firebase.js";
 import { emit } from "../core/events.js";
 import { currentUser, setUser, rememberGender } from "../data/user.js";
@@ -38,7 +38,10 @@ let unsubscribe = null;
 const docRef = (fb, id) => fb.F.doc(fb.db, "users", id);
 const isDirty = () => getRaw(KEYS.syncDirty) === "1";
 const setDirty = (on) => (on ? setRaw(KEYS.syncDirty, "1") : remove(KEYS.syncDirty));
-const loadBase = () => getJSON(KEYS.syncBase, null) || NO_HISTORY;
+const loadBase = () => {
+  const base = getObject(KEYS.syncBase);
+  return base.keys && base.jobs ? base : NO_HISTORY;
+};
 const hasBase = () => getRaw(KEYS.syncBase) !== null;
 const saveBase = (data) => setJSON(KEYS.syncBase, fingerprint(data));
 

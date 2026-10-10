@@ -5,8 +5,8 @@
 
 import { KEYS, getRaw, setRaw } from "../core/storage.js";
 import { emit } from "../core/events.js";
-import { todayISO } from "../core/dom.js";
-import { allJobs, importJobs, NONE } from "../data/jobs.js";
+import { todayISO, isPictureData } from "../core/dom.js";
+import { allJobs, importJobs, countVacancies, NONE } from "../data/jobs.js";
 import { statusLabel } from "../data/statuses.js";
 import { gender } from "../data/user.js";
 
@@ -35,8 +35,8 @@ export function parseBackup(text) {
   if (!doc || doc.app !== APP || !doc.data || typeof doc.data !== "object") return null;
   const data = {};
   for (const key of BACKUP_KEYS) if (typeof doc.data[key] === "string") data[key] = doc.data[key];
-  const jobs = parse(data[KEYS.jobs], []);
-  return { data, exported: typeof doc.exported === "string" ? doc.exported : "", count: Array.isArray(jobs) ? jobs.length : 0 };
+  if (data[KEYS.wallpaper] && !isPictureData(data[KEYS.wallpaper])) delete data[KEYS.wallpaper]; // a picture, not an address
+  return { data, exported: typeof doc.exported === "string" ? doc.exported : "", count: countVacancies(parse(data[KEYS.jobs], [])) };
 }
 
 // Returns { added: vacancies added, filled: other parts taken from the copy }.

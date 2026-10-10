@@ -65,8 +65,9 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [
-    { name: "flows-desktop", testMatch: /flows\.spec/, use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
-    { name: "flows-iphone", testMatch: /flows\.spec/, use: { ...devices["iPhone 11"] } },
+    // flows.spec.mjs plus the edge-case specs (attack-*.spec.mjs), which pick their own browser per test
+    { name: "flows-desktop", testMatch: /(flows|attack-[a-z]+)\.spec/, use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
+    { name: "flows-iphone", testMatch: /(flows|attack-[a-z]+)\.spec/, use: { ...devices["iPhone 11"] } },
     ...LAYOUT_DEVICES.map((d) => ({ ...d, name: "layout-" + d.name, testMatch: /layout\.spec/ })),
   ],
 });

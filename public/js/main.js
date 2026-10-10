@@ -23,6 +23,7 @@ import { initFairyApp } from "./apps/fairy.js";
 import { initAuthDialog } from "./apps/auth-dialog.js";
 import { initBackup } from "./apps/backup.js";
 import { initOffline } from "./services/offline.js";
+import { toast } from "./ui/toast.js";
 
 loadJobs();
 
@@ -70,6 +71,15 @@ window.addEventListener("storage", (e) => {
   if (e.key !== null && !e.key.startsWith(SYNC_PREFIX)) return;
   clearTimeout(otherTabTimer);
   otherTabTimer = setTimeout(() => emit("state"), 100);
+});
+
+// The browser refused to save (its storage is full, usually because of a big wallpaper): say so, at most every
+// half a minute, instead of letting the change vanish at the next reload.
+let warnedFull = 0;
+on("storage-full", () => {
+  if (Date.now() - warnedFull < 30000) return;
+  warnedFull = Date.now();
+  toast("Браузеру забракло місця ✦ останні зміни не збереглися. Прибери фон робочого столу в «Моїй Феї» або збережи копію даних у START.", { ms: 12000 });
 });
 
 // Firebase (~175 KB) waits for the page to load; the desktop already renders from the local copy of the user.

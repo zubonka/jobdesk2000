@@ -10,7 +10,8 @@ const utc = (iso) => {
   const [y, m, d] = iso.split("-").map(Number);
   return Date.UTC(y, m - 1, d);
 };
-const isDate = (value) => typeof value === "string" && ISO_DATE.test(value) && !Number.isNaN(utc(value));
+// a real calendar day: "2026-09-43" would silently roll over into October
+const isDate = (value) => typeof value === "string" && ISO_DATE.test(value) && toISO(utc(value)) === value;
 const toISO = (ms) => new Date(ms).toISOString().slice(0, 10);
 
 // Whole days from `from` to `to`; null when either is not a date.

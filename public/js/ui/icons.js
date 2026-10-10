@@ -1,7 +1,7 @@
 // Desktop icons. On desktop they snap to a grid, can be dragged and remember their cells;
 // on phones they form a fixed home-screen grid (row by row) and are not draggable.
 
-import { KEYS, getJSON, setJSON, getRaw, setRaw } from "../core/storage.js";
+import { KEYS, getObject, setJSON, getRaw, setRaw } from "../core/storage.js";
 import { byId, qsa } from "../core/dom.js";
 import { on } from "../core/events.js";
 import { openWin, isOpen, isMobile, uiScale } from "./windows.js";
@@ -16,7 +16,7 @@ function grid() {
 const toSaved = ({ x, y }) => ({ x: Math.round(x / uiScale()), y: Math.round(y / uiScale()) });
 const fromSaved = ({ x, y }) => ({ x: x * uiScale(), y: y * uiScale() });
 
-let positions = getJSON(KEYS.iconPos, {}) || {};
+let positions = getObject(KEYS.iconPos);
 
 const icons = () => qsa(".d-icon");
 const key = (cell) => cell.col + "," + cell.row;
@@ -112,7 +112,7 @@ function makeDraggable(ic) {
 const syncActive = () => icons().forEach((ic) => ic.classList.toggle("active", isOpen(ic.dataset.open)));
 
 export function reloadIcons() {
-  positions = getJSON(KEYS.iconPos, {}) || {};
+  positions = getObject(KEYS.iconPos);
   layoutIcons();
 }
 

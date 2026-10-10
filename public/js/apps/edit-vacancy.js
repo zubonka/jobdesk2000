@@ -27,20 +27,21 @@ const close = () => closeDialog(DIALOG);
 // Stored placeholders (NONE, DEFAULT_TITLE, "#") show as empty fields.
 const blank = (value, placeholder) => (value == null || value === placeholder ? "" : String(value));
 
-// An unmatched employment type gets an option of its own, so saving the form does not lose it.
-function setEmpSelect(value) {
-  const sel = formEl("emp");
-  if (!value) { sel.value = ""; return; }
-  const low = value.toLowerCase();
-  const match = EMP_MATCHES.find(([pattern]) => pattern.test(low));
-  if (match) { sel.value = match[1]; return; }
-  if (![...sel.options].some((o) => o.value === value)) sel.add(new Option(value, value));
+// A value that is none of the options gets an option of its own, so saving the form does not lose it.
+function setSelect(sel, value) {
+  if (value && ![...sel.options].some((o) => o.value === value)) sel.add(new Option(value, value));
   sel.value = value;
+}
+
+function setEmpSelect(value) {
+  const match = value && EMP_MATCHES.find(([pattern]) => pattern.test(value.toLowerCase()));
+  setSelect(formEl("emp"), match ? match[1] : value);
 }
 
 function fillForm(values) {
   formEl("title").value = blank(values.title, DEFAULT_TITLE);
-  for (const name of ["company", "field", "salary", "loc"]) formEl(name).value = blank(values[name], NONE);
+  for (const name of ["company", "field", "salary"]) formEl(name).value = blank(values[name], NONE);
+  setSelect(formEl("loc"), blank(values.loc, NONE));
   setEmpSelect(blank(values.emp, NONE));
   formEl("url").value = blank(values.url, "#");
   formEl("prio").value = values.prio;
