@@ -80,7 +80,7 @@ async function readPdf() {
 function togglePasteBox() {
   const box = byId("cv-paste-box");
   box.hidden = !box.hidden;
-  if (!box.hidden) byId("cv-paste").focus();
+  if (!box.hidden) { byId("cv-paste").focus({ preventScroll: true }); reveal(byId("cv-paste"), { block: "nearest" }); }
 }
 
 function savePastedCV() {
