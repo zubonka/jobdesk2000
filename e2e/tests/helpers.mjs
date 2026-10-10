@@ -38,6 +38,15 @@ export function freshEmail(testInfo, tag = "user") {
   return `${tag}-${slug}-${testInfo.retry}-${testInfo.workerIndex}-${Date.now() % 1e9}@example.com`;
 }
 
+// Records what the content policy (netlify.toml, Report-Only for now) would have blocked, from the first script on.
+export async function watchCsp(page) {
+  await page.addInitScript(() => {
+    window.__csp = [];
+    document.addEventListener("securitypolicyviolation", (e) => window.__csp.push(`${e.effectiveDirective} ${e.blockedURI}`));
+  });
+}
+export const cspViolations = (page) => page.evaluate(() => window.__csp || []);
+
 // The dev server's AI mock reads its mode from this cookie, so each browser context gets its own mode.
 export async function setMock(context, mode, baseURL) {
   await context.addCookies([{ name: "jd_mock", value: mode, url: baseURL }]);

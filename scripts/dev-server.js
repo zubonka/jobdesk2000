@@ -177,9 +177,21 @@ function publicFile(urlPath) {
 // With FIREBASE_EMULATORS=1 every page carries <meta name="jobdesk-emulators" content="<host>">, which makes the
 // app use the Firebase emulators on that host. The browser reaches them on 127.0.0.1 unless
 // FIREBASE_EMULATOR_BROWSER_HOST says otherwise (in Docker the e2e browser uses the "firebase" service).
+const EMULATOR_BROWSER_HOST = process.env.FIREBASE_EMULATOR_BROWSER_HOST || "127.0.0.1";
 const EMULATOR_META = process.env.FIREBASE_EMULATORS === "1"
-  ? `<meta name="jobdesk-emulators" content="${process.env.FIREBASE_EMULATOR_BROWSER_HOST || "127.0.0.1"}">`
+  ? `<meta name="jobdesk-emulators" content="${EMULATOR_BROWSER_HOST}">`
   : "";
+
+// The content policy allows the real Firebase hosts only; with the emulators the page also talks to them.
+function devHeaders(urlPath) {
+  const headers = headersFor(urlPath);
+  const name = "Content-Security-Policy-Report-Only";
+  if (EMULATOR_META && headers[name]) {
+    const emulators = [9099, 8086].map((port) => `http://${EMULATOR_BROWSER_HOST}:${port}`).join(" ");
+    headers[name] = headers[name].replace("connect-src ", `connect-src ${emulators} `);
+  }
+  return headers;
+}
 
 async function serveStatic(req, res, url) {
   const file = publicFile(url.pathname);
@@ -187,7 +199,7 @@ async function serveStatic(req, res, url) {
   let body = req.method === "HEAD" ? undefined : await fs.promises.readFile(shown);
   if (body && EMULATOR_META && shown.endsWith(".html")) body = body.toString("utf8").replace("<head>", "<head>\n" + EMULATOR_META);
   // Netlify's headers first; a dev server must never hand out stale code, so caching is always off
-  res.writeHead(file ? 200 : 404, { ...headersFor(url.pathname), "Content-Type": TYPES[path.extname(shown)] || "application/octet-stream", "Cache-Control": "no-cache" });
+  res.writeHead(file ? 200 : 404, { ...devHeaders(url.pathname), "Content-Type": TYPES[path.extname(shown)] || "application/octet-stream", "Cache-Control": "no-cache" });
   res.end(body);
 }
 

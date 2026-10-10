@@ -2,12 +2,13 @@
 // The dev server answers the AI with a deterministic mock and signs people in through the Firebase emulators.
 import fs from "node:fs";
 import { test, expect } from "@playwright/test";
-import { seedStorage, seedVacancies, openApp, openWindow, closeWindow, register, signIn, signOut, setMock, freshEmail, confirmYes, PASSWORD } from "./helpers.mjs";
+import { seedStorage, seedVacancies, openApp, openWindow, closeWindow, register, signIn, signOut, setMock, freshEmail, confirmYes, watchCsp, cspViolations, PASSWORD } from "./helpers.mjs";
 
 const VACANCY_TEXT = "Acme Studio шукає Senior Graphic Designer. Повна зайнятість, віддалено. Зарплата 1500-2000$. Досвід 3+ роки у Figma.";
 const CV_TEXT = "Олена Тестенко. Графічна дизайнерка, 5 років брендингу: Figma, Illustrator, Photoshop. Айдентика для музичного лейблу.";
 
 test("a guest adds vacancies by text, by link and by hand, edits, filters and removes them", async ({ page }) => {
+  await watchCsp(page);
   await seedStorage(page, { jobdesk2000_welcomed: "1" });
   await openApp(page);
   await page.locator('.d-icon[data-open="vacancies"]').click();
@@ -106,10 +107,12 @@ test("a guest adds vacancies by text, by link and by hand, edits, filters and re
   const card = win.locator(".jobcard", { hasText: "Label Records" });
   await card.locator('input[data-k="deadline"]').fill(tomorrow);
   await expect(card.locator(".jtag.dl")).toHaveText("⏳ дедлайн завтра");
+  expect(await cspViolations(page)).toEqual([]);
 });
 
 test("registration, a cover letter, a revision, a busy retry and copying", async ({ page, browserName, context, baseURL }, testInfo) => {
   if (browserName === "chromium") await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await watchCsp(page);
   await seedStorage(page, { jobdesk2000_welcomed: "1" });
   await openApp(page);
   await register(page, { name: "Олена", email: freshEmail(testInfo) });
@@ -157,6 +160,7 @@ test("registration, a cover letter, a revision, a busy retry and copying", async
     await expect(win.locator(".letter-copy").last()).toHaveText("✓ скопійовано");
     expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("Шановна командо");
   }
+  expect(await cspViolations(page)).toEqual([]); // sign-in, Firestore and the AI calls all stay inside the policy
 });
 
 test("cloud sync: signing out clears the device, signing in restores it, a second device follows live", async ({ page, browser }, testInfo) => {

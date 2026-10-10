@@ -12,12 +12,16 @@ export const firebaseReady = () => !!firebaseNow();
 // not start a second reload while signOutUser is still cleaning up.
 let signingOut = false;
 
-const nameOf = (u, email) => u.displayName || (u.email || email || "").split("@")[0];
+// What was typed at sign-up: Firebase announces the new account before register() has stored the name.
+let signingUp = null;
+
+const nameOf = (u, email) => u.displayName || signingUp?.name || (u.email || email || "").split("@")[0];
+const genderOf = (u) => (!hasGenderFor(u.uid) && signingUp?.gender) || genderFor(u.uid);
 
 function onAuthChange(u) {
   if (u) {
     const local = currentUser();
-    if (!local || local.uid !== u.uid) setUser({ name: nameOf(u), email: u.email || "", gender: genderFor(u.uid), uid: u.uid });
+    if (!local || local.uid !== u.uid) setUser({ name: nameOf(u), email: u.email || "", gender: genderOf(u), uid: u.uid });
     startSync(u.uid);
   } else {
     stopSync();
@@ -60,12 +64,17 @@ async function sdk() {
 
 export async function register({ name, email, password, gender }) {
   const { A, auth } = await sdk();
-  const cr = await A.createUserWithEmailAndPassword(auth, email, password);
-  await A.updateProfile(cr.user, { displayName: name });
-  try { await A.sendEmailVerification(cr.user); } catch (e) { /* the account works without it */ }
-  rememberGender(cr.user.uid, gender);
-  setUser({ name, email, gender, uid: cr.user.uid });
-  return cr.user;
+  signingUp = { name, gender };
+  try {
+    const cr = await A.createUserWithEmailAndPassword(auth, email, password);
+    rememberGender(cr.user.uid, gender);
+    await A.updateProfile(cr.user, { displayName: name });
+    try { await A.sendEmailVerification(cr.user); } catch (e) { /* the account works without it */ }
+    setUser({ name, email, gender, uid: cr.user.uid });
+    return cr.user;
+  } finally {
+    signingUp = null;
+  }
 }
 
 export async function signIn(email, password) {
