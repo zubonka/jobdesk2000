@@ -114,8 +114,25 @@ export function layoutProblems(page, { touch = false } = {}) {
 
     if (document.documentElement.scrollWidth > vw + 1) problems.push(`page scrolls sideways: ${document.documentElement.scrollWidth} > ${vw}`);
 
+    // The part of an element that is on screen: what a box that scrolls or clips (a window body, the taskbar's
+    // strip of window buttons) hides does not count, whatever the element's own rectangle says.
+    const onScreen = (el) => {
+      let r = el.getBoundingClientRect();
+      let box = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+      for (let p = el.parentElement; p && box.right > box.left && box.bottom > box.top; p = p.parentElement) {
+        if (getComputedStyle(p).overflow === "visible") continue;
+        r = p.getBoundingClientRect();
+        box = { left: Math.max(box.left, r.left), top: Math.max(box.top, r.top), right: Math.min(box.right, r.right), bottom: Math.min(box.bottom, r.bottom) };
+      }
+      return box;
+    };
+    // a desktop that scrolls (big text on a phone) shows its icons when scrolled to them
+    const desk = document.getElementById("desktop");
+    const deskScrolls = desk && desk.scrollHeight > desk.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(desk).overflowY);
+
     // surfaces that must sit inside the viewport
-    const surfaces = [...document.querySelectorAll(".win.open, .overlay.open .dialog, #startmenu.open, #clippy.show .bubble, #taskbar, .d-icon")].filter(visible);
+    const surfaces = [...document.querySelectorAll(".win.open, .overlay.open .dialog, #startmenu.open, #clippy.show .bubble, #taskbar, .d-icon")]
+      .filter(visible).filter((el) => !(deskScrolls && el.matches(".d-icon")));
     for (const el of surfaces) {
       const r = el.getBoundingClientRect();
       if (r.left < -1 || r.top < -1 || r.right > vw + 1 || r.bottom > vh + 1) {
@@ -149,21 +166,12 @@ export function layoutProblems(page, { touch = false } = {}) {
 
     // On touch screens the fairy's speech bubble must never sit on top of a control of an open window.
     // (Her figure lets taps through, see #clippy-fairy in app.css.) A control counts only with the part of it
-    // that is on screen: the parts scrolled out of a window body are hidden, whatever their rectangle says.
-    const onScreen = (el) => {
-      let r = el.getBoundingClientRect();
-      let box = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
-      for (let p = el.parentElement; p && box.right > box.left && box.bottom > box.top; p = p.parentElement) {
-        if (getComputedStyle(p).overflow === "visible") continue;
-        r = p.getBoundingClientRect();
-        box = { left: Math.max(box.left, r.left), top: Math.max(box.top, r.top), right: Math.min(box.right, r.right), bottom: Math.min(box.bottom, r.bottom) };
-      }
-      return box;
-    };
+    // that is on screen (onScreen above).
     // Phones give the fairy her own strip, so she must not overlap anything there. On tablets she floats over the
     // windows like on a desktop, so she must let taps through instead.
     const phoneLayout = window.matchMedia("(max-width:760px), (max-height:500px) and (hover:none)").matches;
-    const shownBubbles = [...document.querySelectorAll("#clippy.show .bubble")].filter(visible);
+    // an open dialog lies over the fairy (its overlay is above her), so she cannot cover its controls
+    const shownBubbles = document.querySelector(".overlay.open") ? [] : [...document.querySelectorAll("#clippy.show .bubble")].filter(visible);
     if (touchDevice && !phoneLayout) {
       for (const bubble of shownBubbles) {
         if (getComputedStyle(bubble).pointerEvents !== "none") problems.push("the fairy's bubble catches taps meant for the window below");
@@ -190,7 +198,7 @@ export function layoutProblems(page, { touch = false } = {}) {
     }
 
     // taskbar items must not cover each other
-    const bar = [...document.querySelectorAll("#taskbar > *, .tb-right > *, .tb-task")].filter(visible).map((el) => [el, el.getBoundingClientRect()]);
+    const bar = [...document.querySelectorAll("#taskbar > *, .tb-right > *, .tb-task")].filter(visible).map((el) => [el, onScreen(el)]);
     for (let i = 0; i < bar.length; i++) {
       for (let j = i + 1; j < bar.length; j++) {
         const [a, ra] = bar[i], [b, rb] = bar[j];

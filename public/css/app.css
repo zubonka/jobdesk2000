@@ -20,6 +20,8 @@
   --field:#0f0824; --field-br:#7a4fd0;
   --pink-d:#ff5ac8; --mint-d:#39ffd0; --lav:#7a4fd0; --lav-d:#8f5fff; --lav-dd:#b89aff;
   --taskbar-h:2.875rem;
+  /* accent colours used as text; the light theme darkens them to stay readable on pale windows (WCAG 4.3:1+) */
+  --accent-ink:var(--accent); --accent2-ink:var(--accent2); --warn-ink:var(--warn); --task-ink:#4a2a9e;
   /* iPhone notch and home indicator (viewport-fit=cover); zero everywhere else */
   --safe-t:env(safe-area-inset-top, 0px); --safe-r:env(safe-area-inset-right, 0px);
   --safe-b:env(safe-area-inset-bottom, 0px); --safe-l:env(safe-area-inset-left, 0px);
@@ -32,6 +34,7 @@
   --taskbar:#7d6bc4; --icon-label:#ffffff; --shadow:rgba(91,74,158,.4);
   --field:#faf8ff; --field-br:#b6a8e8;
   --pink-d:#e86aa6; --mint-d:#5bc98d; --lav:#b6a8e8; --lav-d:#7d6bc4; --lav-dd:#5b4a9e;
+  --accent-ink:#24804f; --accent2-ink:#c23d7e; --warn-ink:#a65c0c; --task-ink:var(--lav-dd);
   color-scheme:light;
 }
 
@@ -52,6 +55,10 @@ body{
 }
 .px{font-family:'Press Start 2P',monospace;}
 button, input, select, textarea{font-family:'VT323',monospace;}
+/* a pasted 200-character company name or link breaks inside its box instead of running out of it */
+body{overflow-wrap:break-word;}
+.jobcard .jt, .jobcard .jc, .confirm-text, #clippy .bubble, .chat-msg .b, h3.wh, .sm-head, .toast-text, .gate-text{overflow-wrap:anywhere;}
+#clippy .bubble{min-width:0; max-height:45vh; overflow-y:auto;}
 input, textarea{user-select:text; -webkit-user-select:text;}
 [hidden]{display:none !important;}
 /* bare clickable element: looks like plain text until a component class styles it */
@@ -76,8 +83,11 @@ input, textarea{user-select:text; -webkit-user-select:text;}
 /* ===== WINDOWS ===== */
 .win{position:absolute; z-index:2; background:var(--win-bg); border:.125rem solid var(--win-border); border-radius:.625rem;
   box-shadow:.3125rem .3125rem 0 var(--shadow), 0 0 1.875rem rgba(120,80,255,.15); display:none; flex-direction:column;
-  min-width:16.25rem; min-height:10rem; max-height:88vh; overflow:hidden;}
+  min-width:16.25rem; min-height:10rem; overflow:hidden;
+  /* never taller than the space above the taskbar, which grows with the browser's text size too */
+  max-height:min(88vh, calc(100vh - var(--taskbar-h) - var(--safe-b) - 1rem));}
 .win.open{display:flex;}
+.win[data-app]{max-width:calc(100vw - 1rem);}
 .win.minimized{display:none !important;}
 .dialog:focus{outline:none;}
 .tb-task.min{opacity:.65;}
@@ -112,8 +122,8 @@ body:not(.tile-mode) .win[data-app] .win-head, .win-resize{touch-action:none;}
 /* README.TXT: a notepad page with a status bar */
 .win-body.notepad{display:flex; flex-direction:column; padding:0; overflow:hidden;}
 .readme{flex:1; min-height:0; overflow-y:auto; padding:.875rem 1.125rem 1rem; font-size:1rem; line-height:1.5; color:var(--ink); background:var(--field); user-select:text; -webkit-user-select:text;}
-.readme-title{font-family:'Press Start 2P',monospace; font-size:.75rem; line-height:1.7; color:var(--accent2); margin:0 0 .5rem;}
-.readme h3{font-size:1.0625rem; color:var(--accent); margin:.875rem 0 .25rem; letter-spacing:.0625rem;}
+.readme-title{font-family:'Press Start 2P',monospace; font-size:.75rem; line-height:1.7; color:var(--accent2-ink); margin:0 0 .5rem;}
+.readme h3{font-size:1.0625rem; color:var(--accent-ink); margin:.875rem 0 .25rem; letter-spacing:.0625rem;}
 .readme ul{margin:0; padding-left:1.125rem;}
 .readme li{margin:.1875rem 0;}
 .notepad-status{display:flex; justify-content:space-between; gap:.5rem; padding:.25rem .625rem; font-size:.8125rem; color:var(--dim); border-top:.125rem solid var(--field-br);}
@@ -134,12 +144,17 @@ body.tile-mode #tilewrap{display:grid; grid-template-columns:repeat(auto-fit,min
   background:var(--taskbar); border-top:.125rem solid var(--win-border); box-shadow:0 -.1875rem .75rem rgba(0,0,0,.35);}
 #startbtn{font-family:'Press Start 2P',monospace; font-size:.6875rem; background:var(--accent); border:.125rem solid #fff; border-radius:.4375rem;
   padding:.375rem .75rem; cursor:pointer; color:#0a0618; display:flex; align-items:center; gap:.375rem;}
-.tb-tasks{display:flex; gap:.375rem; flex:1; overflow-x:auto; scrollbar-width:none;}
+.tb-tasks{display:flex; gap:.375rem; flex:1; min-width:0; overflow-x:auto; scrollbar-width:none;}
+#startbtn{flex:none; white-space:nowrap;}
+/* the clock is the first thing to go when the taskbar gets too narrow (a small phone with big text) */
+#taskbar{container-type:inline-size;}
+@container (max-width:22rem){ #clock{display:none;} }
+#acc-label{display:inline-block; max-width:8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom;}
 .tb-tasks::-webkit-scrollbar{display:none;}
 .tb-task{font-size:1rem; color:#fff; background:rgba(255,255,255,.12); border:.0625rem solid rgba(255,255,255,.3); border-radius:.375rem;
   padding:.3125rem .75rem; cursor:pointer; white-space:nowrap; transition:background .1s; display:flex; align-items:center; gap:.375rem;}
 .tb-task:hover{background:rgba(255,255,255,.24);}
-.tb-task.active{background:#fff; color:var(--lav-dd);}
+.tb-task.active{background:#fff; color:var(--task-ink);}
 .tb-right{display:flex; align-items:center; gap:.5rem; flex:none;}
 .tb-btn{font-size:.9375rem; color:#fff; background:rgba(255,255,255,.14); border:.0625rem solid rgba(255,255,255,.3); border-radius:.375rem; padding:.3125rem .5625rem; cursor:pointer;}
 .tb-btn:hover{background:rgba(255,255,255,.26);}
@@ -149,10 +164,12 @@ body.tile-mode #tilewrap{display:grid; grid-template-columns:repeat(auto-fit,min
 /* ===== START MENU ===== */
 #startmenu{position:fixed; left:calc(.5rem + var(--safe-l)); bottom:calc(3.25rem + var(--safe-b)); width:20.625rem; max-width:92vw; z-index:9700; display:none;
   background:var(--win-bg); border:.125rem solid var(--accent); border-radius:.625rem; box-shadow:.3125rem .3125rem 0 var(--shadow), 0 0 1.875rem rgba(120,80,255,.3); overflow:hidden;}
-#startmenu.open{display:block;}
+#startmenu.open{display:flex; flex-direction:column;}
 #startmenu .sm-head{background:linear-gradient(90deg,var(--lav-d),var(--accent)); color:#fff; padding:.5625rem .6875rem; font-family:'Press Start 2P',monospace; font-size:.6875rem;}
-#startmenu .sm-body{padding:.625rem; max-height:60vh; overflow-y:auto;}
-#startmenu .sm-title{color:var(--accent); font-size:.9375rem; margin-bottom:.4375rem; letter-spacing:.0625rem;}
+/* the menu has one height limit, and its list scrolls inside it */
+#startmenu{max-height:min(70vh, calc(100vh - var(--taskbar-h) - var(--safe-b) - 1rem));}
+#startmenu .sm-body{padding:.625rem; flex:1 1 auto; min-height:0; overflow-y:auto;}
+#startmenu .sm-title{color:var(--accent-ink); font-size:.9375rem; margin-bottom:.4375rem; letter-spacing:.0625rem;}
 #startmenu .sm-step{font-size:.875rem; line-height:1.45; margin-bottom:.375rem; color:var(--ink);}
 #startmenu .sm-sep{height:.125rem; background:var(--field-br); margin:.5625rem 0;}
 #startmenu .sm-item{display:block; width:100%; padding:.5rem .5625rem; border-radius:.4375rem; cursor:pointer; font-size:.9375rem; color:var(--ink);}
@@ -172,10 +189,10 @@ input[type=search]{-webkit-appearance:none; appearance:none;}
 .btn.ghost{background:transparent; color:var(--ink); border-color:var(--win-border);}
 .btn.sm{font-size:.875rem;}
 .btn.google{background:#fff; color:#333; border-color:#ccc;}
-h3.wh{font-size:1.25rem; color:var(--accent); margin-bottom:.625rem; letter-spacing:.0312rem;}
+h3.wh{font-size:1.25rem; color:var(--accent-ink); margin-bottom:.625rem; letter-spacing:.0312rem;}
 label.fl{font-size:.875rem; color:var(--dim); display:block; margin-bottom:.25rem; text-transform:uppercase; letter-spacing:.0625rem;}
 .muted{color:var(--dim); font-size:.9375rem;}
-.msg{color:var(--accent2); min-height:1rem;}
+.msg{color:var(--accent2-ink); min-height:1rem;}
 .ink{color:var(--ink);}
 
 /* ===== UTILITIES ===== */
@@ -188,7 +205,7 @@ label.fl{font-size:.875rem; color:var(--dim); display:block; margin-bottom:.25re
 .mt6{margin-top:.375rem;} .mt8{margin-top:.5rem;} .mt12{margin-top:.75rem;}
 .mb8{margin-bottom:.5rem;} .mb10{margin-bottom:.625rem;} .mb12{margin-bottom:.75rem;}
 .center{text-align:center;}
-.c-accent{color:var(--accent);} .c-lav{color:var(--lav-dd);} .c-warn{color:var(--warn);} .c-mint{color:var(--mint-d);} .c-pink{color:var(--accent2);}
+.c-accent{color:var(--accent-ink);} .c-lav{color:var(--lav-dd);} .c-warn{color:var(--warn-ink);} .c-mint{color:var(--accent-ink);} .c-pink{color:var(--accent2-ink);}
 
 /* ===== MESSENGER ===== */
 .msg-intro{display:flex; gap:.625rem; align-items:flex-start; margin-bottom:.625rem;}
@@ -197,7 +214,7 @@ label.fl{font-size:.875rem; color:var(--dim); display:block; margin-bottom:.25re
 .cv-zone{border:.125rem dashed var(--field-br); border-radius:.5rem; padding:.625rem; margin-bottom:.625rem; display:flex; gap:.625rem; align-items:center; flex-wrap:wrap;}
 .cv-zone .cv-ico{font-size:1.25rem;}
 .cv-zone .cv-txt{flex:1; min-width:7.5rem;}
-.cv-ok{color:var(--mint-d);}
+.cv-ok{color:var(--accent-ink);}
 .cv-paste{flex-basis:100%;}
 .cv-paste textarea{resize:vertical;}
 .form-grid{display:grid; grid-template-columns:1fr 1fr; gap:.5rem; margin-bottom:.625rem;}
@@ -205,7 +222,7 @@ label.fl{font-size:.875rem; color:var(--dim); display:block; margin-bottom:.25re
 .chat-log{background:var(--field); border:.125rem solid var(--field-br); border-radius:.5rem; padding:.625rem; max-height:21.25rem; overflow-y:auto; margin-bottom:.5rem;} /* no smooth scrolling: a running scroll to a new message must not pull a reader who scrolled up */
 #cl-out{margin-top:.5rem; min-height:3.75rem;}
 .chat-letter-wrap{position:relative; margin:.375rem 0;}
-.letter-copy{position:absolute; top:.375rem; right:.375rem; z-index:2; font-size:.75rem; padding:.25rem .5rem; border:.0625rem solid var(--accent); background:var(--win-bg); color:var(--accent); border-radius:.375rem; cursor:pointer; font-family:inherit;}
+.letter-copy{position:absolute; top:.375rem; right:.375rem; z-index:2; font-size:.75rem; padding:.25rem .5rem; border:.0625rem solid var(--accent); background:var(--win-bg); color:var(--accent-ink); border-radius:.375rem; cursor:pointer; font-family:inherit;}
 .letter-copy:hover{background:var(--accent); color:var(--win-bg);}
 .chat-msg{margin-bottom:.5rem; font-size:.9375rem; line-height:1.45;}
 .chat-msg.me{text-align:right;}
@@ -240,18 +257,19 @@ label.fl{font-size:.875rem; color:var(--dim); display:block; margin-bottom:.25re
 #a-paste{resize:vertical;}
 .filters{display:flex; flex-wrap:wrap; gap:.375rem; margin-bottom:.625rem; align-items:center;}
 .f-search{flex:1 1 100%; min-width:0;}
+.filters select{max-width:100%; min-width:0;}
 .empty{text-align:center; padding:1.25rem; line-height:1.45;}
-.gh{font-size:1rem; color:var(--accent); margin:.875rem 0 .5rem; letter-spacing:.0625rem;}
+.gh{font-size:1rem; color:var(--accent-ink); margin:.875rem 0 .5rem; letter-spacing:.0625rem;}
 .jobcard{position:relative; border:.125rem solid var(--field-br); border-radius:.625rem; padding:.6875rem; margin-bottom:.625rem; background:var(--field);
   /* cards out of sight are not laid out: hundreds of vacancies with long notes stay quick */
   content-visibility:auto; contain-intrinsic-size:auto 14rem;}
 .jobcard .jhead{display:flex; justify-content:space-between; align-items:center; gap:.375rem;}
 .jobcard .jtools{display:flex; gap:.5rem; align-items:center;}
 .jobcard .jt{font-size:1.0625rem; color:var(--ink); line-height:1.2;}
-.jobcard .jc{font-size:.875rem; color:var(--accent2); margin-top:.125rem;}
+.jobcard .jc{font-size:.875rem; color:var(--accent2-ink); margin-top:.125rem;}
 .jcol{color:var(--dim); font-size:1rem;}
-.jedit{color:var(--accent); font-size:1.0625rem;}
-.jdel{color:var(--accent2); font-size:1.125rem;}
+.jedit{color:var(--accent-ink); font-size:1.0625rem;}
+.jdel{color:var(--accent2-ink); font-size:1.125rem;}
 .jtag{display:inline-block; font-size:.8125rem; color:var(--dim); border:.0625rem solid var(--field-br); border-radius:.625rem; padding:.0625rem .4375rem; margin:.25rem .25rem 0 0;}
 .jtag.dl.soon{color:var(--ink); border-color:var(--warn);}
 .jtag.dl.hot{color:#2a1a00; background:var(--warn); border-color:var(--warn);}
@@ -290,7 +308,7 @@ label.fl{font-size:.875rem; color:var(--dim); display:block; margin-bottom:.25re
 .app-photo img{width:100%; height:100%; object-fit:cover;}
 .app-logo{width:4rem; height:4rem; border-radius:.875rem; flex:none; background:var(--field); border:.125rem solid var(--accent); display:flex; align-items:center; justify-content:center; overflow:hidden;}
 .app-logo img{width:100%; height:100%; object-fit:contain; image-rendering:pixelated;}
-.app-name{font-size:1.375rem; color:var(--accent);}
+.app-name{font-size:1.375rem; color:var(--accent-ink);}
 .app-name.sm{font-size:1.25rem;}
 .text{font-size:1rem; line-height:1.5; margin-bottom:.75rem;}
 h3.wh.h17{font-size:1.0625rem;}
@@ -298,7 +316,7 @@ h3.wh.h16{font-size:1rem;}
 .socials{display:flex; gap:.75rem; align-items:center; margin-bottom:1rem; flex-wrap:wrap;}
 .soc-ic{display:inline-flex; border:.125rem solid var(--field-br); border-radius:.5rem; padding:.1875rem; background:var(--field); transition:transform .1s, border-color .1s; text-decoration:none; image-rendering:pixelated;}
 .soc-ic:hover{transform:translateY(-.125rem); border-color:var(--accent);}
-.mail-link{font-size:.875rem; color:var(--accent); text-decoration:none; word-break:break-all;}
+.mail-link{font-size:.875rem; color:var(--accent-ink); text-decoration:none; word-break:break-all;}
 .terms{font-size:.9375rem; line-height:1.5;}
 .feature-list{font-size:.9375rem; line-height:1.6; margin:0 0 .75rem 1.125rem; padding:0;}
 .note{font-size:.875rem; line-height:1.5; margin-bottom:.875rem;}
@@ -352,7 +370,7 @@ h3.wh.h16{font-size:1rem;}
 .toast.leaving{animation:toast-out .25s ease-in forwards;}
 @keyframes toast-in{from{opacity:0; transform:translate(-50%, .75rem);} to{opacity:1; transform:translate(-50%, 0);}}
 @keyframes toast-out{to{opacity:0; transform:translate(-50%, .75rem);}}
-.toast-act{flex:none; padding:.25rem .625rem; border:.125rem solid var(--accent); border-radius:.4375rem; color:var(--accent); font-size:.9375rem;}
+.toast-act{flex:none; padding:.25rem .625rem; border:.125rem solid var(--accent); border-radius:.4375rem; color:var(--accent-ink); font-size:.9375rem;}
 .toast-act:hover{background:var(--accent); color:var(--win-bg);}
 .confetti{position:fixed; inset:0; pointer-events:none; z-index:11000; overflow:hidden;}
 .confetti span{position:absolute; font-size:1.375rem; line-height:1; will-change:transform,opacity;}
@@ -368,7 +386,7 @@ h3.wh.h16{font-size:1rem;}
   font-size:1rem; line-height:1.35; color:var(--ink); box-shadow:.1875rem .1875rem 0 var(--shadow); margin-bottom:.375rem;}
 #clippy .bubble::after{content:""; position:absolute; right:2.5rem; bottom:-.5625rem; width:.875rem; height:.875rem; background:var(--win-bg);
   border-right:.125rem solid var(--win-border); border-bottom:.125rem solid var(--win-border); transform:rotate(45deg);}
-#clippy .bubble .cx{position:absolute; top:.1875rem; right:.4375rem; cursor:pointer; color:var(--accent2); font-size:1rem;}
+#clippy .bubble .cx{position:absolute; top:.1875rem; right:.4375rem; cursor:pointer; color:var(--accent2-ink); font-size:1rem;}
 #clippy-fairy{width:8.75rem; height:8.75rem; margin-left:auto; animation:float 4s ease-in-out infinite; pointer-events:none;} /* taps go through her to the window below */
 @keyframes float{0%,100%{transform:translateY(0) rotate(-2deg);}50%{transform:translateY(-.5rem) rotate(2deg);}}
 #clippy-fairy svg{width:100%; height:100%; display:block; filter:drop-shadow(.125rem .25rem .375rem rgba(0,0,0,.4));}
@@ -426,8 +444,12 @@ h3.wh.h16{font-size:1rem;}
   /* windows: full screen, no drag or resize */
   .win{position:fixed !important; left:0 !important; top:0 !important; right:0 !important; bottom:calc(var(--taskbar-h) + var(--safe-b)) !important;
        width:100vw !important; max-width:100vw !important; height:auto !important; max-height:none !important;
-       border-radius:0; border-left:none; border-right:none; box-shadow:none; z-index:500 !important;}
+       border-radius:0; border-left:none; border-right:none; box-shadow:none; z-index:500 !important; min-width:0 !important;}
+  #desktop{overflow-y:auto;}
   .win[data-app].focused{z-index:501 !important;} /* the window last opened or picked on the taskbar is the one shown */
+  /* big browser text: nothing inside a window may insist on being wider than the phone */
+  .fairy-main, #cl-edit, #add-url{min-width:0;}
+  .app-head{flex-wrap:wrap;}
   .d-icon{touch-action:auto;}
   .win.open{display:flex !important;}
   .win-body{flex:1 1 auto; min-height:0; overflow-y:auto; padding:.75rem; -webkit-overflow-scrolling:touch;}
@@ -451,8 +473,8 @@ h3.wh.h16{font-size:1rem;}
   #acc-label{display:none;}
   #clock{font-size:.8125rem; padding:0 .25rem;}
 
-  #startmenu{left:calc(.25rem + var(--safe-l)); right:calc(.25rem + var(--safe-r)); width:auto; bottom:calc(3rem + var(--safe-b)); max-height:76vh;}
-  #startmenu .sm-body{max-height:66vh;}
+  #startmenu{left:calc(.25rem + var(--safe-l)); right:calc(.25rem + var(--safe-r)); width:auto; bottom:calc(3rem + var(--safe-b));
+    max-height:min(76vh, calc(100vh - var(--taskbar-h) - var(--safe-b) - .75rem));}
 
   /* inputs: finger friendly, 1rem+ so iOS does not zoom */
   input, select, textarea, .btn{font-size:1rem !important;}

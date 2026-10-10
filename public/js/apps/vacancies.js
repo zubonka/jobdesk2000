@@ -276,7 +276,8 @@ function onJobsChange({ type, id, key }) {
   if (BOARD_CHANGES.includes(type) || (type === "field" && BOARD_FIELDS.includes(key))) refresh();
 }
 
-const jobLabel = (job) => (job.company !== NONE ? job.company + " — " + job.title : job.title);
+const short = (text, max = 60) => (text.length > max ? text.slice(0, max - 1) + "…" : text);
+const jobLabel = (job) => short(job.company !== NONE ? job.company + " — " + job.title : job.title);
 
 // When the app opens, the fairy points at the nearest deadline of the next few days.
 export function remindDeadline() {
