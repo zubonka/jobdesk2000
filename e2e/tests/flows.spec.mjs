@@ -150,6 +150,7 @@ test("registration, a cover letter, a revision, a busy retry and copying", async
   await win.locator("#cl-gen").click();
   await expect(win.locator(".chat-letter")).toHaveCount(1);
   await expect(win.locator(".chat-letter").first()).toContainText("Мене звати Олена");
+  await expect(win.locator(".chat-letter").first(), "the letter is in sight without scrolling for it").toBeInViewport({ ratio: 0.3 });
   await expect(win.locator("#cl-status")).toHaveText("Готово ✦");
 
   await win.locator("#cl-edit").fill("зроби коротшим");

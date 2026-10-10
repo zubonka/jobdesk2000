@@ -504,7 +504,10 @@ h3.wh.h16{font-size:1rem;}
   .type-btn{padding:.5rem;}
 
   .chat-log{max-height:46vh;}
-  #cl-editrow{position:sticky; bottom:0; background:var(--win-bg); padding-top:.375rem;}
+  /* it sticks to the window's very edge: at bottom:0 it would stop above the body's padding and the chat would show
+     through below it */
+  #cl-editrow{position:sticky; bottom:-.75rem; background:var(--win-bg); padding:.375rem 0 .5rem;}
+  #cl-out{scroll-margin-bottom:4.5rem;} /* brought into view above the edit row, not under it */
 
   .overlay .dialog{width:96vw !important; max-width:96vw !important; position:relative !important;
     left:auto !important; top:auto !important; right:auto !important; bottom:auto !important;

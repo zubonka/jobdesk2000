@@ -216,6 +216,8 @@ async function askFairy({ typing, call, reply, status, fail }) {
   setBusy(true);
   setStatus(WRITING);
   const pending = addMessage("assistant", typing);
+  // the person just asked: the chat comes into view (on a phone it sits below the button), the letter lands there
+  byId("cl-out").scrollIntoView({ block: "nearest" });
   try {
     const { text } = await withRetries(call, pending);
     replaceMessage(pending, { role: "assistant", text: reply }, { role: "letter", text });
