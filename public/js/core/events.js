@@ -13,6 +13,7 @@
 //   state      local data was replaced (from the cloud, another tab or a backup); every module reloads from storage
 //   firebase   Firebase finished loading
 //   storage-full  the browser refused to save (detail: the storage key); main.js tells the user
+//   sync-too-big  the cloud refused the copy as too big (very long notes or CV); main.js tells the user
 
 const handlers = new Map();
 

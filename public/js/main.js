@@ -73,14 +73,16 @@ window.addEventListener("storage", (e) => {
   otherTabTimer = setTimeout(() => emit("state"), 100);
 });
 
-// The browser refused to save (its storage is full, usually because of a big wallpaper): say so, at most every
-// half a minute, instead of letting the change vanish at the next reload.
-let warnedFull = 0;
-on("storage-full", () => {
-  if (Date.now() - warnedFull < 30000) return;
-  warnedFull = Date.now();
-  toast("Браузеру забракло місця ✦ останні зміни не збереглися. Прибери фон робочого столу в «Моїй Феї» або збережи копію даних у START.", { ms: 12000 });
+// The browser refused to save (its storage is full, usually because of a big wallpaper) or the cloud refused the
+// copy: say so, at most every half a minute, instead of letting the change vanish unnoticed.
+const warned = {};
+const warnOnce = (name, text) => on(name, () => {
+  if (Date.now() - (warned[name] || 0) < 30000) return;
+  warned[name] = Date.now();
+  toast(text, { ms: 12000 });
 });
+warnOnce("storage-full", "Браузеру забракло місця ✦ останні зміни не збереглися. Прибери фон робочого столу в «Моїй Феї» або збережи копію даних у START.");
+warnOnce("sync-too-big", "Дані завеликі для хмари ✦ тут усе збережено, але інші пристрої не отримають змін, доки найдовші нотатки чи резюме не стануть коротшими.");
 
 // Firebase (~175 KB) waits for the page to load; the desktop already renders from the local copy of the user.
 window.addEventListener("load", initAuth, { once: true });

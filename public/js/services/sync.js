@@ -18,7 +18,9 @@ import { merge, fingerprint, sameData } from "./sync-merge.js";
 
 const PUSH_DELAY_MS = 800;
 const FLUSH_TIMEOUT_MS = 4000;
-const MAX_DOC_CHARS = 900 * 1024; // Firestore documents are limited to 1 MiB
+// Firestore documents are limited to 1 MiB, counted in UTF-8 bytes: Cyrillic letters take two each
+const MAX_DOC_BYTES = 900 * 1024;
+const bytes = (text) => new TextEncoder().encode(text).length;
 const USER_DATA_KEYS = [KEYS.progress, KEYS.jobs, KEYS.cv, KEYS.fairy, KEYS.wallpaper, KEYS.collapsed];
 const NO_HISTORY = { keys: {}, jobs: {} };
 
@@ -45,20 +47,39 @@ const loadBase = () => {
 const hasBase = () => getRaw(KEYS.syncBase) !== null;
 const saveBase = (data) => setJSON(KEYS.syncBase, fingerprint(data));
 
-function parseDoc(snap) {
-  if (!snap.exists()) return {};
+// In a cloud copy: the wallpaper was left out because the document got too big, not removed.
+const WALL_OMITTED = "jd2000_wall_omitted";
+
+// The cloud copy as { data: { key: raw string }, raw: what the document literally holds }, or null when the document
+// is not a copy at all (then this device's copy goes up over it). What the cloud cannot tell is taken from this
+// device's data, so it reads as unchanged: a value that is not a string (an edit in the console) and a wallpaper
+// left out for size.
+function readCloud(snap, local) {
+  if (!snap.exists()) return { data: {}, raw: {} };
   const d = snap.data();
-  try { return d && d.data ? JSON.parse(d.data) || {} : {}; } catch (e) { return {}; }
+  let raw;
+  try { raw = d && d.data ? JSON.parse(d.data) : {}; } catch (e) { return null; }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const data = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (key === WALL_OMITTED) continue;
+    if (typeof value === "string") data[key] = value;
+    else if (local[key] !== undefined) data[key] = local[key];
+  }
+  const wall = KEYS.wallpaper;
+  if (raw[WALL_OMITTED] && data[wall] === undefined && local[wall] !== undefined) data[wall] = local[wall];
+  return { data, raw };
 }
 
 const localData = () => syncedEntries();
 const hasUserData = (data) => Object.keys(data).some((k) => k !== KEYS.user);
 
-// The wallpaper is left out of the cloud copy when the document would get too big; it then lives on this device.
+// The wallpaper is left out of the cloud copy when the document would get too big; it then lives on this device,
+// and the copy says so, or other devices would take its absence for a removal.
 function forCloud(data) {
-  if (JSON.stringify(data).length <= MAX_DOC_CHARS) return { cloud: data, wallLocal: false };
   const { [KEYS.wallpaper]: wall, ...rest } = data;
-  return { cloud: rest, wallLocal: wall !== undefined };
+  if (wall === undefined || bytes(JSON.stringify(data)) <= MAX_DOC_BYTES) return { cloud: data, wallLocal: false };
+  return { cloud: { ...rest, [WALL_OMITTED]: "1" }, wallLocal: true };
 }
 
 // The user record belongs to this account: the cloud may update its name and gender, never swap the account.
@@ -113,19 +134,21 @@ async function push() {
   let before = null;
   try {
     const result = await fb.F.runTransaction(fb.db, async (tx) => {
-      const remote = parseDoc(await tx.get(docRef(fb, id)));
+      const snap = await tx.get(docRef(fb, id));
       // This device's data and the history it shares with the cloud are read together, after the read above:
       // a snapshot applied while it waited changes both, and a stale copy paired with newer history would look
       // like the user deleted whatever the other device added. Firestore may run this function again; each run
       // takes a fresh pair.
       before = localData();
+      const copy = readCloud(snap, before) || { data: {}, raw: null }; // a broken document is written over
+      const remote = copy.data;
       // an empty cloud document is a new account, not "everything was deleted"
       const merged = hasUserData(remote) ? merge(loadBase(), before, remote) : { ...before };
       const user = sameAccountUser(merged, before);
       if (user !== undefined) merged[KEYS.user] = user;
       const { cloud, wallLocal } = forCloud(merged);
       const json = JSON.stringify(cloud);
-      if (!sameData(cloud, remote)) {
+      if (!copy.raw || !sameData(cloud, copy.raw)) {
         inflight = json;
         tx.set(docRef(fb, id), { data: json, updated: Date.now() }, { merge: true });
       }
@@ -149,6 +172,7 @@ async function push() {
     return true;
   } catch (err) {
     console.warn("cloud sync postponed:", err && (err.code || err.message)); // offline or contention; stays dirty
+    if (err && err.code === "invalid-argument") emit("sync-too-big"); // even without the wallpaper it does not fit
     return false;
   }
 }
@@ -199,7 +223,9 @@ function firstSync(remote) {
     setDirty(hasUserData(local)); // a new account: whatever is here becomes its first cloud copy
   }
   setRaw(KEYS.owner, uid);
-  if (hasUserData(remote)) saveBase(remote); else remove(KEYS.syncBase);
+  // An empty cloud copy is a new account: an empty base, so what any device adds from now on counts as an addition
+  // (without a base the cloud would win and could wipe the vacancies a guest brought in).
+  saveBase(remote);
   ready = true;
   if (isDirty()) schedule();
 }
@@ -207,14 +233,16 @@ function firstSync(remote) {
 function onSnapshot(id, snap) {
   if (uid !== id || snap.metadata.hasPendingWrites) return;
   if (!ready) {
-    if (!snap.metadata.fromCache) firstSync(parseDoc(snap));
+    if (!snap.metadata.fromCache) firstSync(readCloud(snap, localData())?.data || {});
     return;
   }
   if (snap.metadata.fromCache) return;
   const d = snap.exists() ? snap.data() : null;
   if (d && (d.data === lastPushed || d.data === inflight)) return; // the echo of our own write
-  const remote = parseDoc(snap);
   const local = localData();
+  const copy = readCloud(snap, local);
+  if (!copy) { setDirty(true); schedule(); return; } // not a copy at all: this device's data goes up over it
+  const remote = copy.data;
   const next = isDirty() && hasBase() ? merge(loadBase(), local, remote) : remote;
   if (!sameData(next, local)) replaceLocal(next);
   saveBase(remote);
@@ -260,6 +288,6 @@ export function forgetAccountData() {
 }
 
 // Leaving the tab or getting the connection back: send what is still waiting.
-const pushIfDirty = () => { if (ready && isDirty() && !timer) pushNow(); };
+const pushIfDirty = () => { if (ready && isDirty()) pushNow(); }; // without waiting for the debounce
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") pushIfDirty(); });
 window.addEventListener("online", pushIfDirty);

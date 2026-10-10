@@ -123,3 +123,41 @@ test("edits typed during a push are put on top of what the push wrote, nothing o
   const again = merge(fingerprint(written), next, written);
   assert.deepEqual(jobsOf(again), ["A|One", "B|Other device"]);
 });
+
+test("two devices changing different fields of one vacancy both win; a field changed on both keeps this device's", () => {
+  const base = data({ jobs: [job("Same", "Co")], progress: { "Same|Co": { status: "Не подавалася", date: "", deadline: "", note: "" } } });
+  const local = data({ jobs: [job("Same", "Co", { salary: "$2000" })], progress: { "Same|Co": { status: "Перша співбесіда", date: "", deadline: "", note: "моя" } } });
+  const remote = data({ jobs: [job("Same", "Co", { loc: "Офіс" })], progress: { "Same|Co": { status: "Не подавалася", date: "", deadline: "", note: "HR: Олена" } } });
+  const out = merge(fingerprint(base), local, remote);
+  const [merged] = JSON.parse(out[KEYS.jobs]);
+  assert.deepEqual([merged.salary, merged.loc], ["$2000", "Офіс"]);
+  assert.deepEqual(progressOf(out)["Same|Co"], { status: "Перша співбесіда", date: "", deadline: "", note: "моя" });
+});
+
+test("a base from an older version (one hash per vacancy) still merges the vacancy as a whole", () => {
+  const base = data({ jobs: [job("Same", "Co")], progress: { "Same|Co": { status: "Не подавалася", note: "" } } });
+  const old = fingerprint(base);
+  for (const id of Object.keys(old.jobs)) old.jobs[id] = old.jobs[id].v;
+  const local = data({ jobs: [job("Same", "Co")], progress: { "Same|Co": { status: "Оффер", note: "" } } });
+  const remote = data({ jobs: [job("Same", "Co")], progress: { "Same|Co": { status: "Не подавалася", note: "HR" } } });
+  assert.deepEqual(progressOf(merge(old, local, remote))["Same|Co"], { status: "Оффер", note: "" });
+});
+
+test("a rename here and a status change there give one card with the new name and the new status", () => {
+  const base = data({ jobs: [job("Typo Co", "Designer")], progress: { "Typo Co|Designer": { status: "Не подавалася", date: "", deadline: "", note: "HR" } } });
+  const renamed = data({ jobs: [job("Typo Company", "Designer")], progress: { "Typo Company|Designer": { status: "Не подавалася", date: "", deadline: "", note: "HR" } } });
+  const offer = data({ jobs: [job("Typo Co", "Designer")], progress: { "Typo Co|Designer": { status: "Оффер", date: "", deadline: "", note: "HR" } } });
+  for (const [local, remote] of [[renamed, offer], [offer, renamed]]) {
+    const out = merge(fingerprint(base), local, remote);
+    assert.deepEqual(jobsOf(out), ["Typo Company|Designer"]);
+    assert.equal(progressOf(out)["Typo Company|Designer"].status, "Оффер");
+  }
+});
+
+test("a removal on one side and a new vacancy that only looks alike are not taken for a rename", () => {
+  const base = data({ jobs: [job("Old", "Designer")], progress: { "Old|Designer": { status: "Подалася", note: "x" } } });
+  const local = data({ jobs: [job("New", "Designer", { salary: "$9000" })], progress: { "New|Designer": { status: "Не подавалася", note: "" } } });
+  const remote = data({ jobs: [job("Old", "Designer")], progress: { "Old|Designer": { status: "Оффер", note: "x" } } });
+  const out = merge(fingerprint(base), local, remote);
+  assert.deepEqual(jobsOf(out).sort(), ["New|Designer", "Old|Designer"], "an edit beats a removal, and the new vacancy stays");
+});

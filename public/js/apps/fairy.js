@@ -13,6 +13,9 @@ import { say } from "../ui/clippy.js";
 
 const TYPE_PREVIEW = { type1: "tb1", type2: "tb2" };
 const WALL_MAX_WIDTH = 1280;
+const WALL_MIN_WIDTH = 480;
+// leaves room for the vacancies in the 900 KB cloud copy, so the wallpaper reaches the other devices too
+const WALL_MAX_CHARS = 600 * 1024;
 const WALL_QUALITY = 0.8;
 const PALETTE_SIZE = 6;
 const SAMPLE_SIZE = 64;
@@ -138,15 +141,18 @@ function applyWall(dataUrl) {
   byId("wall-remove").hidden = !dataUrl;
 }
 
-// A downscaled JPEG keeps the picture small enough for localStorage.
+// A downscaled JPEG small enough for localStorage and the cloud copy: first the quality steps down, then the size.
 function toWallpaper(img) {
-  let w = img.naturalWidth, h = img.naturalHeight;
-  if (w > WALL_MAX_WIDTH) { h = Math.round(h * WALL_MAX_WIDTH / w); w = WALL_MAX_WIDTH; }
   const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-  return canvas.toDataURL("image/jpeg", WALL_QUALITY);
+  let w = Math.min(img.naturalWidth, WALL_MAX_WIDTH), quality = WALL_QUALITY;
+  for (;;) {
+    canvas.width = w;
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * w / img.naturalWidth));
+    canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+    const url = canvas.toDataURL("image/jpeg", quality);
+    if (url.length <= WALL_MAX_CHARS || w <= WALL_MIN_WIDTH) return url;
+    if (quality > 0.55) quality -= 0.1; else w = Math.round(w * 0.8);
+  }
 }
 
 async function uploadWallpaper(input) {

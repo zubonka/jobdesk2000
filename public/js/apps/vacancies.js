@@ -124,15 +124,26 @@ function card(job, g) {
   </div>`;
 }
 
+// A redraw (a change from another device, a filter) keeps the field the user is typing in, caret included.
+function keepingFocus(draw) {
+  const board = byId("board"), el = document.activeElement;
+  const field = el && board.contains(el) && el.dataset.id ? { id: el.dataset.id, k: el.dataset.k, start: el.selectionStart, end: el.selectionEnd } : null;
+  draw();
+  const again = field && [...board.querySelectorAll(".js-f")].find((x) => x.dataset.id === field.id && x.dataset.k === field.k);
+  if (!again) return;
+  again.focus({ preventScroll: true });
+  if (field.start != null) try { again.setSelectionRange(field.start, field.end); } catch (e) { /* a date field has no caret */ }
+}
+
 function renderBoard() {
   const jobs = visibleJobs(), g = gender();
   const groups = PRIORITIES.map((prio) => [prio, jobs.filter((job) => job.prio === prio)]).filter(([, list]) => list.length);
   const empty = allJobs().length
     ? html`<div class="muted empty">Нічого не знайдено</div>`
     : html`<div class="muted empty">Тут поки порожньо ✦ Встав посилання чи текст вакансії вгорі або додай її вручну, і вона зʼявиться тут.</div>`;
-  setHtml(byId("board"), groups.length
+  keepingFocus(() => setHtml(byId("board"), groups.length
     ? html`${groups.map(([prio, list]) => html`<div class="gh">✦ ${prio} [${list.length}]</div>${list.map((job) => card(job, g))}`)}`
-    : empty);
+    : empty));
 }
 
 function refresh() {
