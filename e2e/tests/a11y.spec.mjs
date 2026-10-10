@@ -7,6 +7,9 @@ import { seedVacancies, seedStorage, openApp, openWindow, closeWindow, register,
 
 const AXE = fs.readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
 const GUEST_WINDOWS = ["vacancies", "stats", "about", "valya", "readme"];
+// Text on a gradient below AA by the owner's design, left to her (README, browser tests): measured, but not failed.
+// The START menu header: white letters running into the mint end of its lavender-to-mint gradient.
+const KNOWN_GRADIENTS = ["#startmenu .sm-head"];
 
 // Checks what is on screen now. The script goes in through the debugger, so the page's content policy never sees it.
 async function check(page, screen) {
@@ -14,18 +17,43 @@ async function check(page, screen) {
   // (looping decorations never finish and do not count)
   await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running" || a.effect?.getComputedTiming().iterations === Infinity), null, { timeout: 5000 }).catch(() => {});
   if (!(await page.evaluate(() => !!window.axe))) await page.evaluate(AXE);
-  const violations = await page.evaluate(async () => {
+  const { violations, gradients } = await page.evaluate(async (known) => {
     const result = await window.axe.run(document, {
       runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] },
-      resultTypes: ["violations"],
+      resultTypes: ["violations", "incomplete"],
     });
-    return result.violations.map((v) => ({
-      rule: v.id,
-      help: v.help,
-      nodes: v.nodes.slice(0, 6).map((n) => n.target.join(" ") + ": " + (n.failureSummary || "").split("\n").slice(1).join(" ").slice(0, 200)),
-    }));
-  });
+    // axe cannot see a colour behind text on a gradient and leaves it "incomplete": measured here against every
+    // colour stop, the worst one counts
+    // the opaque colours of a background (translucent ones, such as the desktop's grid lines, only tint it)
+    const rgb = (text) => (text.match(/rgba?\([^)]+\)/g) || []).map((c) => c.match(/[\d.]+/g).map(Number))
+      .filter((c) => c.length < 4 || c[3] >= 0.99).map((c) => c.slice(0, 3));
+    const lum = ([r, g, b]) => [r, g, b].map((v) => v / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)).reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+    const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+    const gradients = [];
+    for (const node of result.incomplete.filter((r) => r.id === "color-contrast").flatMap((r) => r.nodes)) {
+      if (!node.any.some((c) => /bgGradient|bgImage/.test(c.data?.messageKey || ""))) continue;
+      const el = document.querySelector(node.target[0]);
+      let bg = el;
+      while (bg && !/gradient/.test(getComputedStyle(bg).backgroundImage)) bg = bg.parentElement;
+      if (!el || !bg) continue;
+      const style = getComputedStyle(el), size = parseFloat(style.fontSize), bold = Number(style.fontWeight) >= 700;
+      const needed = size >= 24 || (size >= 18.66 && bold) ? 3 : 4.5;
+      const stops = rgb(getComputedStyle(bg).backgroundImage);
+      if (!stops.length) continue;
+      const worst = Math.min(...stops.map((stop) => ratio(rgb(style.color)[0], stop)));
+      if (worst < needed && !known.some((sel) => el.closest(sel))) gradients.push(`${node.target.join(" ")}: ${worst.toFixed(2)} at the worst stop, needs ${needed}`);
+    }
+    return {
+      gradients,
+      violations: result.violations.map((v) => ({
+        rule: v.id,
+        help: v.help,
+        nodes: v.nodes.slice(0, 6).map((n) => n.target.join(" ") + ": " + (n.failureSummary || "").split("\n").slice(1).join(" ").slice(0, 200)),
+      })),
+    };
+  }, KNOWN_GRADIENTS);
   expect.soft(violations, screen).toEqual([]);
+  expect.soft(gradients, screen + ": text on a gradient").toEqual([]);
 }
 
 async function setTheme(page, theme) {
