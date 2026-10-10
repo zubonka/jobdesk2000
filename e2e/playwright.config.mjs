@@ -40,6 +40,8 @@ const LAYOUT_DEVICES = [
   monitor("monitor-4k-hidpi", 1920, 1080, 2),
 ];
 
+const EXTREME_DEVICES = ["iphone-11", "iphone-11-landscape", "galaxy-small", "ipad-mini", "laptop-1280", "monitor-4k"];
+
 // In Docker (E2E_START_SERVER=1) the tests start the dev server themselves; on a workstation they use the one
 // already running (npm run dev with MOCK_AI=1 and FIREBASE_EMULATORS=1).
 const webServer = process.env.E2E_START_SERVER === "1"
@@ -68,6 +70,12 @@ export default defineConfig({
     // flows.spec.mjs plus the edge-case specs (attack-*.spec.mjs), which pick their own browser per test
     { name: "flows-desktop", testMatch: /(flows|attack-(?!layout)[a-z]+)\.spec/, use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
     { name: "flows-iphone", testMatch: /(flows|attack-(?!layout)[a-z]+)\.spec/, use: { ...devices["iPhone 11"] } },
-    ...LAYOUT_DEVICES.map((d) => ({ ...d, name: "layout-" + d.name, testMatch: /layout\.spec/ })),
+    // layout.spec.mjs on every device; the slower extreme-content spec (attack-layout.spec.mjs) on a few that
+    // stand for the rest: a small and a big phone, a phone held sideways, a tablet, a laptop and a 4K monitor
+    ...LAYOUT_DEVICES.map((d) => ({
+      ...d,
+      name: "layout-" + d.name,
+      testMatch: EXTREME_DEVICES.includes(d.name) ? /layout\.spec/ : /(^|[\\/])layout\.spec/,
+    })),
   ],
 });
