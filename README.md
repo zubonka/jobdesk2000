@@ -164,6 +164,8 @@ E2E_WORKERS=1 E2E_ARGS="tests/attack-sync.spec.mjs --project=flows-desktop" dock
 - `tests/layout.spec.mjs`: every screen on 17 devices, from an iPhone 11 to a 4K monitor, checked for sideways
   scrolling, overflowing or overlapping parts, small text, small touch targets and the fairy covering controls.
   Screenshots land in `e2e/test-results/screens/<device>/`.
+- `tests/a11y.spec.mjs`: every screen in the light and the dark theme checked with axe-core (the checker behind
+  Lighthouse's accessibility score) against WCAG 2.1 A and AA: contrast, labels, names, keyboard access.
 - `tests/attack-*.spec.mjs`: edge cases by area (stored data, windows and keyboard, cloud sync with two
   devices, the AI flows, extreme content and text sizes). Each test states the correct behaviour.
 - Arguments in `E2E_ARGS` are split on spaces inside the container: use `--grep word.word`, not quotes.
