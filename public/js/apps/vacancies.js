@@ -20,7 +20,7 @@ import { openEditVacancy, openNewVacancy } from "./edit-vacancy.js";
 import { confirmDialog } from "../ui/confirm.js";
 import { toast } from "../ui/toast.js";
 import { confetti } from "../ui/confetti.js";
-import { openWin, isFocused } from "../ui/windows.js";
+import { openWin, isFocused, reveal } from "../ui/windows.js";
 
 // filter select id and the job property it compares
 const FILTERS = [["f-prio", "prio"], ["f-field", "field"], ["f-emp", "emp"], ["f-status", "status"]];
@@ -126,10 +126,12 @@ function deadlineSlot(job) {
 
 // a new day: only the deadline badges are drawn again, so a field being typed in stays as it is
 function redrawDeadlines() {
-  for (const el of byId("board").querySelectorAll(".jobcard")) {
-    const job = getJob(el.dataset.id);
-    if (job) setHtml(el.querySelector(".dl-slot"), deadlineSlot(job));
-  }
+  keepingFocus(() => {
+    for (const el of byId("board").querySelectorAll(".jobcard")) {
+      const job = getJob(el.dataset.id);
+      if (job) setHtml(el.querySelector(".dl-slot"), deadlineSlot(job));
+    }
+  });
 }
 
 function addToCalendar(id) {
@@ -150,7 +152,7 @@ function card(job, g) {
   </div>`;
 }
 
-const CARD_TOOLS = ["jcol", "jedit", "jdel"];
+const CARD_TOOLS = ["jcol", "jedit", "jdel", "jcal"];
 
 // A redraw (a change from another device, a filter, folding a card) keeps the field the user is typing in, caret
 // included, or the card button the keyboard is on.
@@ -281,9 +283,15 @@ function withdrawOffer() {
   offerOpen = false;
 }
 
+// the paste field takes the keyboard and comes into view without moving the desktop
+function focusPaste() {
+  byId("a-paste").focus({ preventScroll: true });
+  reveal(byId("a-paste"), { block: "nearest" });
+}
+
 function togglePasteBox() {
   const box = byId("paste-box");
-  if (offerOpen && !box.hidden) { offerOpen = false; byId("a-paste").focus(); return; }
+  if (offerOpen && !box.hidden) { offerOpen = false; focusPaste(); return; }
   offerOpen = false;
   box.hidden = !box.hidden;
   if (box.hidden) withdrawOffer();
@@ -410,7 +418,7 @@ export function takeSharedLink() {
     byId("paste-box").hidden = false;
     byId("a-paste").value = text;
     setMsg("Текст вакансії вже тут ✦ натисни «✦ Проаналізувати текст», і фея розбере вакансію.");
-    byId("a-paste").focus();
+    focusPaste();
     return;
   }
   openWin("vacancies");

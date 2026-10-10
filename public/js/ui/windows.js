@@ -55,6 +55,14 @@ function giveFocusBack(w, hadFocus, ...candidates) {
   (target || byId("startbtn"))?.focus({ preventScroll: true }); // the opener is gone (a START menu item, a rebuilt button)
 }
 
+// Brings something inside a window into view. scrollIntoView scrolls every box around it, the desktop included,
+// and the desktop must never move (it cannot be scrolled back, and a window hanging over its edge would pull it).
+export function reveal(el, options) {
+  const desk = desktop(), at = tileMode ? null : [desk.scrollLeft, desk.scrollTop];
+  el.scrollIntoView(options);
+  if (at) [desk.scrollLeft, desk.scrollTop] = at;
+}
+
 // fn runs every time the app's window is opened
 export function onOpen(app, fn) {
   (openHooks[app] ||= []).push(fn);

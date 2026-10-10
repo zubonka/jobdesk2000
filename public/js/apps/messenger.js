@@ -11,7 +11,7 @@ import { fairyName } from "../fairy/store.js";
 import { paintFairy, POSE } from "../fairy/render.js";
 import { analyzeProfile, writeLetter, reviseLetter, BUSY } from "../services/api.js";
 import { pdfToText } from "../services/pdf.js";
-import { onOpen } from "../ui/windows.js";
+import { onOpen, reveal } from "../ui/windows.js";
 import { say } from "../ui/clippy.js";
 
 const RETRY_WAITS = [8, 12]; // seconds before each automatic retry while Gemini is busy
@@ -217,7 +217,7 @@ async function askFairy({ typing, call, reply, status, fail }) {
   setStatus(WRITING);
   const pending = addMessage("assistant", typing);
   // the person just asked: the chat comes into view (on a phone it sits below the button), the letter lands there
-  byId("cl-out").scrollIntoView({ block: "nearest" });
+  reveal(byId("cl-out"), { block: "nearest" });
   try {
     const { text } = await withRetries(call, pending);
     replaceMessage(pending, { role: "assistant", text: reply }, { role: "letter", text });
