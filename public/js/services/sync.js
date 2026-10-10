@@ -15,7 +15,7 @@ import { KEYS, SYNC_PREFIX, getRaw, getObject, setRaw, setJSON, remove, silently
 import { loadFirebase, firebaseNow } from "./firebase.js";
 import { emit } from "../core/events.js";
 import { currentUser, setUser, rememberGender } from "../data/user.js";
-import { merge, fingerprint, sameData } from "./sync-merge.js";
+import { merge, fingerprint, sameData, hash } from "./sync-merge.js";
 
 const PUSH_DELAY_MS = 800;
 const FLUSH_TIMEOUT_MS = 4000;
@@ -90,11 +90,21 @@ const localData = () => syncedEntries();
 const hasUserData = (data) => Object.keys(data).some((k) => k !== KEYS.user);
 
 // The wallpaper is left out of the cloud copy when the document would get too big; it then lives on this device,
-// and the copy says so, or other devices would take its absence for a removal.
-function forCloud(data) {
+// and the copy says so, or other devices would take its absence for a removal. keepOmitted: the copy says that of
+// another device's wallpaper, and this device has not picked a new one, so its own older one must not go up over it.
+function forCloud(data, keepOmitted = false) {
   const { [KEYS.wallpaper]: wall, ...rest } = data;
+  if (wall !== undefined && keepOmitted) return { cloud: { ...rest, [WALL_OMITTED]: "1" }, wallLocal: false };
   if (wall === undefined || bytes(JSON.stringify(data)) <= MAX_DOC_BYTES) return { cloud: data, wallLocal: false };
   return { cloud: { ...rest, [WALL_OMITTED]: "1" }, wallLocal: true };
+}
+
+// A cloud copy as this device reads it back (readCloud): a wallpaper left out is this device's own. The history
+// saved with a push must look like that too, or the next push would take this device's wallpaper for a new one.
+function asRead(cloud, local) {
+  if (!cloud[WALL_OMITTED]) return cloud;
+  const { [WALL_OMITTED]: omitted, ...rest } = cloud;
+  return local[KEYS.wallpaper] === undefined ? rest : { ...rest, [KEYS.wallpaper]: local[KEYS.wallpaper] };
 }
 
 // The user record belongs to this account: the cloud may update its name and gender, never swap the account.
@@ -170,7 +180,9 @@ async function push() {
       const merged = hasUserData(remote) ? merge(loadBase(), before, remote, { renamed: sent }) : { ...before };
       const user = sameAccountUser(merged, before);
       if (user !== undefined) merged[KEYS.user] = user;
-      const { cloud, wallLocal } = forCloud(merged);
+      const wall = merged[KEYS.wallpaper];
+      const othersWall = !!copy.raw?.[WALL_OMITTED] && getRaw(KEYS.wallLocal) !== "1";
+      const { cloud, wallLocal } = forCloud(merged, othersWall && wall !== undefined && hash(wall) === loadBase().keys[KEYS.wallpaper]);
       const json = JSON.stringify(cloud);
       const read = snap.exists() ? Number(snap.data()?.updated) || 0 : 0;
       let version = read;
@@ -194,7 +206,7 @@ async function push() {
     if (!sameData(now, before)) {
       // The user kept typing while this was sent. What was written is the new common history, so it has to reach
       // this device too, or the next push would read another device's edits in it as deleted here.
-      saveBase(result.cloud);
+      saveBase(asRead(result.cloud, result.merged));
       forgetRenames(sent);
       const next = merge(fingerprint(before), now, result.merged, { renamed: renamed() });
       if (!sameData(next, now)) replaceLocal(next);
@@ -204,7 +216,7 @@ async function push() {
     // another device's edits came in with the merge; when they do not fit here, the old history stays and the
     // device stays dirty, so the next push still counts them as the other device's
     if (!sameData(result.merged, before) && !replaceLocal(result.merged)) return false;
-    saveBase(result.cloud);
+    saveBase(asRead(result.cloud, result.merged));
     forgetRenames(sent);
     setDirty(false);
     return true;
@@ -352,9 +364,15 @@ export async function flushSync() {
   return ready && !isDirty();
 }
 
-// After signing out: drop this account's data from the device, but only if the cloud has it.
+// After signing out: drop this account's data from the device, but only if the cloud has it. A wallpaper too big
+// for the cloud copy lives here only: it waits on the device for this account, like unsent changes (takeBackStash).
 export function forgetAccountData() {
+  const owner = getRaw(KEYS.owner), wall = getRaw(KEYS.wallLocal) === "1" ? getRaw(KEYS.wallpaper) : null;
   clearUserData();
+  if (owner && wall) {
+    const stash = getObject(KEYS.stash), kept = stash[owner] || { data: {}, base: NO_HISTORY };
+    setJSON(KEYS.stash, { ...stash, [owner]: { ...kept, data: { ...kept.data, [KEYS.wallpaper]: wall } } });
+  }
   remove(KEYS.owner);
   remove(KEYS.syncDirty);
 }

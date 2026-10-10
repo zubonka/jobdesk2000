@@ -230,3 +230,56 @@ test("a cloud copy that a full storage could not take is not counted as common h
   assert.match(p["Gamma|Dev"].status, /^Подал/);
   assert.equal(p["Beta|Dev"].note, "an unrelated edit on the laptop");
 });
+
+/* ----- a wallpaper too big for the cloud copy ----- */
+
+const WALL = "jobdesk2000_wall_v1";
+const picture = (fill, kb) => "data:image/jpeg;base64," + fill.repeat(kb * 1024);
+
+test("a wallpaper kept on one device for size is not overwritten by another device's older one, but a new one is", async () => {
+  const start = { ...data([job("Acme")], { "Acme|Dev": fresh() }), [WALL]: picture("O", 1) };
+  startCloud(start);
+  const laptop = await synced("laptop", start), phone = await synced("phone", start);
+  const big = picture("B", 950);
+  laptop.store.setItem(WALL, big); // what My Fairy does with a big picture
+  laptop.jobs.setJobField("Acme|Dev", "note", "laptop");
+  await laptop.sync.flushSync();
+  assert.equal(cloud.data("u1").jd2000_wall_omitted, "1");
+  phone.deliver();
+  for (const note of ["phone 1", "phone 2"]) { // edits that have nothing to do with the wallpaper
+    phone.jobs.setJobField("Acme|Dev", "note", note);
+    await phone.sync.flushSync();
+    assert.equal(cloud.data("u1")[WALL], undefined, note + ": the phone's older wallpaper stays off the cloud");
+    assert.equal(cloud.data("u1").jd2000_wall_omitted, "1");
+    laptop.deliver();
+    assert.equal(laptop.store.getItem(WALL), big, note);
+  }
+  const fresher = picture("N", 2);
+  phone.store.setItem(WALL, fresher); // the phone picks a new wallpaper on purpose
+  phone.jobs.setJobField("Acme|Dev", "note", "phone 3");
+  await phone.sync.flushSync();
+  assert.equal(cloud.data("u1")[WALL], fresher);
+  laptop.deliver();
+  assert.equal(laptop.store.getItem(WALL), fresher);
+});
+
+test("signing out keeps a wallpaper that lives on this device only, and it comes back with the account", async () => {
+  const start = data([job("Acme")], { "Acme|Dev": fresh() });
+  startCloud(start);
+  const d = await synced("solo", start);
+  const big = picture("B", 950);
+  d.store.setItem(WALL, big);
+  d.jobs.setJobField("Acme|Dev", "note", "x");
+  assert.equal(await d.sync.flushSync(), true);
+  assert.equal(d.store.getItem("jd2000_wall_local"), "1");
+  d.sync.stopSync();
+  d.sync.forgetAccountData();
+  d.users.clearUser();
+  assert.equal(d.store.getItem(WALL), null, "nothing of the account is left to see");
+  d.users.setUser({ name: "Оля", email: "u1@example.com", gender: "f", uid: "u1" });
+  await d.sync.startSync("u1");
+  d.deliver();
+  await d.sync.flushSync();
+  assert.equal(d.store.getItem(WALL), big);
+  assert.equal(d.store.getItem("jd2000_stash"), null);
+});
