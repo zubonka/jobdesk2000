@@ -20,6 +20,9 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     for (const name of await caches.keys()) if (name !== CACHE) await caches.delete(name);
+    // pages that older versions of this worker kept under their query (a share's "/?url=..."): see pageKey
+    const cache = await caches.open(CACHE);
+    for (const request of await cache.keys()) if (new URL(request.url).search) await cache.delete(request);
     await self.clients.claim();
   })());
 });
@@ -36,14 +39,23 @@ self.addEventListener("message", (event) => {
   }))));
 });
 
+// A page is kept under its path alone: "/?url=..." from a share and "/" are one page, so the copy that opens offline
+// is always the latest one, whatever query it was loaded with.
+const pageKey = (request) => {
+  if (request.mode !== "navigate") return request;
+  const url = new URL(request.url);
+  return url.origin + url.pathname;
+};
+
 async function networkFirst(request) {
   const cache = await caches.open(CACHE);
+  const key = pageKey(request);
   try {
     const res = await fetch(request);
-    if (res.status === 200 && res.type === "basic") cache.put(request, res.clone()).catch(() => {}); // 206 and friends are not cached
+    if (res.status === 200 && res.type === "basic") cache.put(key, res.clone()).catch(() => {}); // 206 and friends are not cached
     return res;
   } catch (err) {
-    const hit = await cache.match(request, { ignoreSearch: request.mode === "navigate" });
+    const hit = await cache.match(key);
     if (hit) return hit;
     if (request.mode === "navigate") return (await cache.match("/")) || Response.error();
     return Response.error();

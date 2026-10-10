@@ -445,4 +445,24 @@ test.describe("installed or offline", () => {
     await context.setOffline(false);
     await expect(page.locator("#tb-offline")).toBeHidden();
   });
+
+  test("a page opened through a shared link is kept as the one page, so offline the latest copy opens", async ({ page, context }, testInfo) => {
+    test.skip(testInfo.project.name !== "flows-desktop", "Chromium's service worker is enough here");
+    await seedVacancies(page);
+    await openApp(page);
+    await page.evaluate(() => navigator.serviceWorker.ready);
+    await page.reload(); // now the worker answers the page itself
+    await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+    await page.goto("/?add=https://example.com/job/9");
+    await page.waitForFunction(() => !!window.jobdesk);
+    await expect.poll(() => page.evaluate(async () => {
+      const cache = await caches.open((await caches.keys())[0]);
+      return (await cache.keys()).map((r) => new URL(r.url)).filter((u) => u.pathname === "/").map((u) => u.search);
+    }), { timeout: 10_000 }).toEqual([""]);
+    await context.setOffline(true);
+    await page.goto("/?url=https://example.com/job/10");
+    await page.waitForFunction(() => !!window.jobdesk);
+    await expect(page.locator("#tb-offline")).toBeVisible();
+    await context.setOffline(false);
+  });
 });
