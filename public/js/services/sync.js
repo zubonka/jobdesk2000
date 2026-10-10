@@ -42,6 +42,7 @@ let inflight = 0;        // the write being committed (its snapshot can arrive b
 // this device's own write, and applying that would take back what the write had just merged in.
 let seen = 0;
 let applied = 0;         // the copy last applied here from the cloud
+let held = null;         // the newest snapshot that arrived while a push was running: applied once the push is done
 let unsubscribe = null;
 
 const docRef = (fb, id) => fb.F.doc(fb.db, "users", id);
@@ -234,6 +235,8 @@ function pushNow() {
   if (running) { again = true; return; }
   running = push().finally(() => {
     running = null;
+    // a copy that came in meanwhile goes on top of the history the push saved, not under it
+    if (held) { const { id, snap } = held; held = null; onSnapshot(id, snap); }
     if (again) { again = false; pushNow(); }
   });
 }
@@ -254,51 +257,87 @@ function firstSync(remote, version) {
   // that closed before this sync ran: then the data on the device is still a guest's, joining the account.
   const owner = getRaw(KEYS.owner) || (loadedUid === uid && getRaw(KEYS.joining) !== uid ? uid : "");
   const local = localData();
+  let stored = true, kind = "cloud"; // whether every value fitted, and which way the data came together
+  const take = (next) => { stored = replaceLocal(next) && stored; };
   if (owner && owner !== uid) {
     // This device held someone else's data. What of it never reached that account's cloud copy is put aside here,
     // never uploaded into this account, and merged back when that account signs in on this device again.
-    if (isDirty()) setJSON(KEYS.stash, { ...getObject(KEYS.stash), [owner]: { data: local, base: loadBase() } });
+    const kept = isDirty() ? stashOf(local) : null;
     clearUserData();
-    if (hasUserData(remote)) replaceLocal(remote);
+    if (kept && !putStash(owner, kept)) console.warn("cloud sync: the previous account's unsent changes did not fit on this device");
+    if (hasUserData(remote)) take(remote);
     setDirty(false);
   } else if (!owner && hasUserData(local)) {
     // guest data on this device joins the account
+    kind = "guest";
     const merged = hasUserData(remote) ? merge(NO_HISTORY, local, remote, { preferRemote: true }) : local;
-    if (!sameData(merged, local)) replaceLocal(merged);
+    if (!sameData(merged, local)) take(merged);
     setDirty(true);
   } else if (isDirty() && hasBase() && hasUserData(remote)) {
     // edits this device made before the cloud had them: merge instead of throwing them away.
     // Without a base (a device upgraded from the old app) there is no common history to merge on, so the cloud wins.
+    kind = "merge";
     const merged = merge(loadBase(), local, remote, { renamed: renamed() });
-    if (!sameData(merged, local)) replaceLocal(merged);
+    if (!sameData(merged, local)) take(merged);
   } else if (hasUserData(remote)) {
-    if (!sameData(remote, local)) replaceLocal(remote);
+    if (!sameData(remote, local)) take(remote);
     setDirty(false);
   } else {
     setDirty(hasUserData(local)); // a new account: whatever is here becomes its first cloud copy
   }
   setRaw(KEYS.owner, uid);
   remove(KEYS.joining);
-  takeBackStash();
-  // An empty cloud copy is a new account: an empty base, so what any device adds from now on counts as an addition
-  // (without a base the cloud would win and could wipe the vacancies a guest brought in).
-  saveBase(remote);
+  stored = takeBackStash() && stored;
+  if (stored) {
+    // An empty cloud copy is a new account: an empty base, so what any device adds from now on counts as an
+    // addition (without a base the cloud would win and could wipe the vacancies a guest brought in).
+    saveBase(remote);
+  } else {
+    // A full storage refused part of it, and what did not fit is not common history: a merge keeps its old base, a
+    // guest's join gets none, and a device that took the cloud copy shares only what it really holds, so the rest
+    // still reads as the cloud's change. Dirty, so it is settled once there is room.
+    if (kind === "guest") remove(KEYS.syncBase); else if (kind === "cloud") saveBase(localData());
+    setDirty(true);
+  }
   applied = version;
   ready = true;
   if (isDirty()) schedule();
 }
 
-// This account's changes put aside while another account used the device go on top of what is here now.
+// An account's data put aside, with the history it shares with its cloud copy. A wallpaper that lives on this device
+// only is not in that history: it is this device's own, and comes back as such.
+function stashOf(local) {
+  const base = loadBase(), keys = { ...base.keys };
+  if (getRaw(KEYS.wallLocal) === "1") delete keys[KEYS.wallpaper];
+  return { data: local, base: { ...base, keys } };
+}
+
+// Written into the room the account's own data has just left. Still too big: without what its cloud copy already
+// holds unchanged, dropped from the data and the history together, so it does not read as deleted.
+function putStash(owner, kept) {
+  const all = getObject(KEYS.stash);
+  if (setJSON(KEYS.stash, { ...all, [owner]: kept })) return true;
+  const keys = { ...kept.base.keys }, data = {};
+  for (const [key, value] of Object.entries(kept.data)) {
+    if (key !== KEYS.jobs && key !== KEYS.progress && keys[key] === hash(value)) { delete keys[key]; continue; }
+    data[key] = value;
+  }
+  return setJSON(KEYS.stash, { ...all, [owner]: { data, base: { ...kept.base, keys } } });
+}
+
+// This account's changes put aside while another account used the device go on top of what is here now. False when
+// they did not fit: then they stay put aside for the next time.
 function takeBackStash() {
   const stash = getObject(KEYS.stash), kept = stash[uid];
-  if (!kept || typeof kept !== "object" || !kept.data) return;
+  if (!kept || typeof kept !== "object" || !kept.data) return true;
   const base = kept.base && kept.base.keys && kept.base.jobs ? kept.base : NO_HISTORY;
   const now = localData();
   const merged = merge(base, kept.data, now);
-  if (!sameData(merged, now)) replaceLocal(merged);
   setDirty(true);
+  if (!sameData(merged, now) && !replaceLocal(merged)) return false;
   delete stash[uid];
   if (Object.keys(stash).length) setJSON(KEYS.stash, stash); else remove(KEYS.stash);
+  return true;
 }
 
 function onSnapshot(id, snap) {
@@ -315,6 +354,7 @@ function onSnapshot(id, snap) {
     return;
   }
   if (snap.metadata.fromCache) return;
+  if (running) { if (!held || version >= held.version) held = { id, snap, version }; return; } // see pushNow
   if (version && version < seen) return; // older than a copy this device already has
   seen = Math.max(seen, version);
   // the echo of our own write, told by its version: another device can write the very same data later
@@ -348,6 +388,7 @@ export function stopSync() {
   clearTimeout(timer);
   timer = null;
   again = false;
+  held = null;
   uid = null;
   ready = false;
   seen = applied = lastPushed = inflight = 0;

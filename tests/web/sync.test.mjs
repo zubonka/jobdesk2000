@@ -283,3 +283,140 @@ test("signing out keeps a wallpaper that lives on this device only, and it comes
   assert.equal(d.store.getItem(WALL), big);
   assert.equal(d.store.getItem("jd2000_stash"), null);
 });
+
+/* ----- a full storage at the first sync, a late answer, the stash ----- */
+
+// a store with a size limit in characters (key + value), like a browser's localStorage
+class QuotaStorage extends MemoryStorage {
+  quota = Infinity;
+  used() { let n = 0; for (let i = 0; i < this.length; i++) { const k = this.key(i); n += k.length + this.getItem(k).length; } return n; }
+  setItem(key, value) {
+    const old = this.getItem(key);
+    if (this.used() - (old === null ? 0 : key.length + old.length) + key.length + String(value).length > this.quota) throw new DOMException("full", "QuotaExceededError");
+    super.setItem(key, value);
+  }
+}
+
+test("a page opened on a nearly full storage does not count the cloud copy it could not take as common history", async () => {
+  const start = { ...data([job("Acme"), job("Beta")], { "Acme|Dev": fresh(), "Beta|Dev": fresh() }), [WALL]: picture("W", 300) };
+  startCloud(start);
+  const phone = await synced("phone", start);
+  phone.jobs.setJobField("Acme|Dev", "status", "offer");
+  phone.jobs.setJobField("Acme|Dev", "note", "offer letter, answer by Friday");
+  await phone.sync.flushSync();
+  const store = new QuotaStorage();
+  const laptop = await device("laptop", { store, seed: { ...start, jd2000_owner: "u1", jd2000_sync_base: JSON.stringify(fingerprint(start)) } });
+  store.quota = store.used() + 20; // the phone's bigger progress map does not fit
+  await laptop.sync.startSync("u1");
+  laptop.deliver();
+  store.removeItem(WALL); // what the storage-full notice suggests, then an ordinary edit
+  laptop.jobs.setJobField("Beta|Dev", "note", "after freeing space");
+  await laptop.sync.flushSync();
+  const p = progress(cloud.data("u1"));
+  assert.equal(p["Acme|Dev"].status, "Оффер");
+  assert.equal(p["Acme|Dev"].note, "offer letter, answer by Friday");
+});
+
+test("a wallpaper too big for a nearly full device is not deleted everywhere by that device's next edit", async () => {
+  const start = data([job("Acme")], { "Acme|Dev": fresh() });
+  startCloud(start);
+  const phone = await synced("phone", start);
+  const wall = picture("P", 400);
+  phone.store.setItem(WALL, wall);
+  phone.jobs.setJobField("Acme|Dev", "note", "new wallpaper");
+  await phone.sync.flushSync();
+  const store = new QuotaStorage();
+  const laptop = await device("laptop", { store, seed: { ...start, jd2000_owner: "u1", jd2000_sync_base: JSON.stringify(fingerprint(start)) } });
+  store.quota = store.used() + 4000; // room for edits, not for the picture
+  await laptop.sync.startSync("u1");
+  laptop.deliver();
+  laptop.jobs.setJobField("Acme|Dev", "note", "an edit on the laptop");
+  await laptop.sync.flushSync();
+  assert.equal(cloud.data("u1")[WALL], wall);
+  assert.equal(progress(cloud.data("u1"))["Acme|Dev"].note, "an edit on the laptop");
+});
+
+test("a guest joining on a full storage keeps every vacancy of the account and the guest's own", async () => {
+  startCloud(data([job("Account Co"), job("Account Two")], { "Account Co|Dev": fresh("account note"), "Account Two|Dev": fresh("two") }));
+  const store = new QuotaStorage();
+  const page = await device("page", { store, seed: { [JOBS]: JSON.stringify([job("Guest Co")]), [PROGRESS]: JSON.stringify({ "Guest Co|Dev": fresh("guest") }), [WALL]: picture("G", 200) } });
+  page.users.setUser({ name: "Оля", email: "u1@example.com", gender: "f", uid: "u1" });
+  store.quota = store.used() + 40; // the joined list does not fit
+  await page.sync.startSync("u1");
+  page.deliver();
+  await page.sync.flushSync();
+  assert.deepEqual(companies(cloud.data("u1")).sort(), ["Account Co", "Account Two", "Guest Co"]);
+});
+
+for (const late of [false, true]) {
+  test(`an edit made on top of this device's write wins even when the write's answer comes late (late: ${late})`, async () => {
+    const start = data([job("Acme")], { "Acme|Dev": fresh("n0") });
+    startCloud(start);
+    const laptop = await synced("laptop", start), phone = await synced("phone", start);
+    laptop.jobs.setJobField("Acme|Dev", "note", "laptop");
+    const release = late ? cloud.holdCommit(laptop.id) : () => {};
+    const pushing = laptop.sync.flushSync();
+    await sleep(20);
+    phone.deliver(); // the phone sees the laptop's note...
+    assert.equal(progress(phone.local())["Acme|Dev"].note, "laptop");
+    phone.jobs.setJobField("Acme|Dev", "note", "phone"); // ...and replaces it on purpose
+    await phone.sync.flushSync();
+    laptop.deliver();
+    release();
+    await pushing;
+    await laptop.sync.flushSync();
+    phone.deliver();
+    laptop.deliver();
+    assert.equal(progress(cloud.data("u1"))["Acme|Dev"].note, "phone");
+    assert.equal(progress(laptop.local())["Acme|Dev"].note, "phone");
+  });
+}
+
+test("a wallpaper kept on this device only comes back with its account after another account used the device", async () => {
+  const startA = data([job("A Co")], { "A Co|Dev": fresh() }, "uA");
+  startCloud(startA, "uA");
+  startCloud(data([job("B Co")], { "B Co|Dev": fresh() }, "uB"), "uB");
+  const store = new MemoryStorage();
+  const a = await device("pageA", { store, seed: { ...startA, jd2000_owner: "uA", jd2000_sync_base: JSON.stringify(fingerprint(startA)) } });
+  await a.sync.startSync("uA");
+  a.deliver();
+  const big = picture("B", 950);
+  store.setItem(WALL, big);
+  a.jobs.setJobField("A Co|Dev", "note", "x");
+  assert.equal(await a.sync.flushSync(), true);
+  assert.equal(store.getItem("jd2000_wall_local"), "1");
+  a.users.setUser({ name: "Богдана", email: "b@example.com", gender: "f", uid: "uB" }); // B signs in over A's page
+  a.sync.stopSync();
+  const b = await device("pageB", { store });
+  await b.sync.startSync("uB");
+  b.deliver();
+  assert.equal(await b.sync.flushSync(), true);
+  b.sync.stopSync();
+  b.sync.forgetAccountData();
+  b.users.clearUser();
+  const back = await device("pageA2", { store });
+  back.users.setUser({ name: "Андрій", email: "a@example.com", gender: "m", uid: "uA" });
+  await back.sync.startSync("uA");
+  back.deliver();
+  await back.sync.flushSync();
+  assert.equal(store.getItem(WALL), big);
+  assert.equal(cloud.data("uA").jd2000_wall_omitted, "1", "the cloud copy still says the wallpaper lives on a device");
+});
+
+test("the previous account's unsent changes are put aside even when two copies of its data would not fit", async () => {
+  const startA = { ...data([job("A Synced Co")], { "A Synced Co|Dev": fresh() }, "uA"), [WALL]: picture("W", 600), jobdesk2000_cv_v1: "Резюме ".repeat(40000) };
+  startCloud(startA, "uA");
+  startCloud(data([job("B Co")], { "B Co|Dev": fresh() }, "uB"), "uB");
+  const store = new QuotaStorage();
+  const a = await device("pageA", { store, seed: { ...startA, jd2000_owner: "uA", jd2000_sync_base: JSON.stringify(fingerprint(startA)) } });
+  store.quota = Math.round(store.used() * 1.6); // fits once, not twice
+  a.jobs.addJob({ company: "A Unsent Co", title: "Dev" }); // made offline
+  a.users.setUser({ name: "Богдана", email: "b@example.com", gender: "f", uid: "uB" });
+  a.sync.stopSync();
+  const b = await device("pageB", { store });
+  await b.sync.startSync("uB");
+  b.deliver();
+  await b.sync.flushSync();
+  assert.ok((store.getItem("jd2000_stash") || "").includes("A Unsent Co"), "A's unsent vacancy waits on the device");
+  assert.ok(!JSON.stringify(cloud.data("uB")).includes("A Unsent"), "and never reaches B");
+});
