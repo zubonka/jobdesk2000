@@ -8,8 +8,9 @@ import { seedVacancies, seedStorage, openApp, openWindow, closeWindow, register,
 const AXE = fs.readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
 const GUEST_WINDOWS = ["vacancies", "stats", "about", "valya", "readme"];
 // Text on a gradient below AA by the owner's design, left to her (README, browser tests): measured, but not failed.
-// The START menu header: white letters running into the mint end of its lavender-to-mint gradient.
-const KNOWN_GRADIENTS = ["#startmenu .sm-head"];
+// The START menu header: white letters running into the mint end of its lavender-to-mint gradient. The light theme's
+// window and dialog titles: white on a lavender gradient that pales to #b6a8e8 (2.15:1 there).
+const KNOWN_GRADIENTS = ["#startmenu .sm-head", ".theme-light .win-head"];
 
 // Checks what is on screen now. The script goes in through the debugger, so the page's content policy never sees it.
 async function check(page, screen) {
@@ -31,10 +32,14 @@ async function check(page, screen) {
     const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
     const gradients = [];
     for (const node of result.incomplete.filter((r) => r.id === "color-contrast").flatMap((r) => r.nodes)) {
-      if (!node.any.some((c) => /bgGradient|bgImage/.test(c.data?.messageKey || ""))) continue;
-      const el = document.querySelector(node.target[0]);
+      const el = document.querySelector(node.target[0]); // undecided for any reason (a text shadow too): a gradient behind is measured
+      // the nearest background behind the text: a gradient is measured, an opaque colour means no gradient shows
       let bg = el;
-      while (bg && !/gradient/.test(getComputedStyle(bg).backgroundImage)) bg = bg.parentElement;
+      while (bg && !/gradient/.test(getComputedStyle(bg).backgroundImage)) {
+        const colour = getComputedStyle(bg).backgroundColor.match(/[\d.]+/g);
+        if (colour && (colour.length < 4 || Number(colour[3]) >= 0.99)) { bg = null; break; }
+        bg = bg.parentElement;
+      }
       if (!el || !bg) continue;
       const style = getComputedStyle(el), size = parseFloat(style.fontSize), bold = Number(style.fontWeight) >= 700;
       const needed = size >= 24 || (size >= 18.66 && bold) ? 3 : 4.5;

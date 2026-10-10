@@ -170,8 +170,9 @@ E2E_WORKERS=1 E2E_ARGS="tests/attack-sync.spec.mjs --project=flows-desktop" dock
   Screenshots land in `e2e/test-results/screens/<device>/`.
 - `tests/a11y.spec.mjs`: every screen in the light and the dark theme checked with axe-core (the checker behind
   Lighthouse's accessibility score) against WCAG 2.1 A and AA: contrast, labels, names, keyboard access. Text on a
-  gradient, which axe cannot judge, is measured against every colour stop. One design choice stays below AA and is
-  left to the owner: the white letters of the START menu header where its gradient turns mint.
+  gradient, which axe cannot judge, is measured against every colour stop. Two design choices stay below AA and are
+  left to the owner: the white letters of the START menu header where its gradient turns mint, and the light
+  theme's window and dialog titles, white on a lavender gradient that pales to 2.15:1.
 - `tests/attack-*.spec.mjs`: edge cases by area (stored data, windows and keyboard, cloud sync with two
   devices, the AI flows, extreme content and text sizes). Each test states the correct behaviour.
 - Arguments in `E2E_ARGS` are split on spaces inside the container: use `--grep word.word`, not quotes.
