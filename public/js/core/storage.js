@@ -26,6 +26,9 @@ export const KEYS = {
                                      // copy, put aside when another account signed in here; this device only
 };
 
+// What the user is told when the browser refuses a write (main.js, apps/backup.js).
+export const STORAGE_FULL_TEXT = "Браузеру забракло місця ✦ останні зміни не збереглися. Прибери фон робочого столу в «Моїй Феї» або збережи копію даних у START.";
+
 // Keys with this prefix are mirrored to the cloud for signed-in users.
 export const SYNC_PREFIX = "jobdesk2000";
 

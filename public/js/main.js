@@ -2,7 +2,7 @@
 // and the apps, then signs in through Firebase in the background.
 
 import { on, emit } from "./core/events.js";
-import { KEYS, SYNC_PREFIX } from "./core/storage.js";
+import { KEYS, SYNC_PREFIX, STORAGE_FULL_TEXT } from "./core/storage.js";
 import { currentUser, reloadUser } from "./data/user.js";
 import { loadJobs } from "./data/jobs.js";
 import { reloadCV } from "./data/profile.js";
@@ -82,7 +82,7 @@ const warnOnce = (name, text) => on(name, () => {
   warned[name] = Date.now();
   toast(text, { ms: 12000 });
 });
-warnOnce("storage-full", "Браузеру забракло місця ✦ останні зміни не збереглися. Прибери фон робочого столу в «Моїй Феї» або збережи копію даних у START.");
+warnOnce("storage-full", STORAGE_FULL_TEXT);
 warnOnce("sync-too-big", "Дані завеликі для хмари ✦ тут усе збережено, але інші пристрої не отримають змін, доки найдовші нотатки чи резюме не стануть коротшими.");
 
 // Firebase (~175 KB) waits for the page to load; the desktop already renders from the local copy of the user.

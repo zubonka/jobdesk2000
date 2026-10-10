@@ -458,6 +458,18 @@ test("restoring a copy with one null progress entry adds every vacancy", async (
   expect(errors).toEqual([]);
 });
 
+test("a copy restored into a full storage says the storage is full instead of reporting success", async ({ page }) => {
+  await seedStorage(page, { jobdesk2000_welcomed: "1" });
+  await boot(page);
+  await openWindow(page, "vacancies");
+  const many = Array.from({ length: 40 }, (_, i) => ({ prio: "Податися", company: "Restore Co " + i, title: "Designer", field: "—", emp: "—", loc: "—", salary: "—", url: "#" }));
+  await fillWithWallpaper(page, 200);
+  await page.locator("#backup-file").setInputFiles(backupFile({ [JOBS_KEY]: JSON.stringify(many) }));
+  await confirmYes(page);
+  await expect(page.locator("#toast")).toContainText("забракло місця");
+  await expect(page.locator("#toast")).not.toContainText("Готово");
+});
+
 test("restoring the same copy twice adds nothing the second time and keeps local edits", async ({ page }) => {
   await seedVacancies(page);
   await boot(page);
