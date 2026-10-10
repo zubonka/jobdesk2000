@@ -126,12 +126,15 @@ function adoptUser(record) {
   }
 }
 
+// how much longer a key gets (a removal shrinks it): what shrinks is written first, so it makes room
+const growth = (local, next, key) => (typeof next[key] === "string" ? next[key].length : 0) - (local[key] || "").length;
+
 // The vacancy list and its progress are one record, as data/jobs.js saves them: a listed vacancy without its progress
 // would read as its status, dates and note cleared. Both are written, or both stay as they were (false).
 const VACANCY_KEYS = [KEYS.jobs, KEYS.progress];
 function writeVacancies(local, next) {
   const written = [];
-  for (const key of VACANCY_KEYS) {
+  for (const key of [...VACANCY_KEYS].sort((a, b) => growth(local, next, a) - growth(local, next, b))) {
     if (key in next && (typeof next[key] !== "string" || next[key] === local[key])) continue;
     if (!(key in next)) remove(key);
     else if (!setRaw(key, next[key])) {
@@ -154,11 +157,13 @@ function replaceLocal(next) {
       if (key === KEYS.user || VACANCY_KEYS.includes(key) || (key === KEYS.wallpaper && keepWall)) continue;
       if (!(key in next)) remove(key);
     }
-    stored = writeVacancies(local, next); // first: the vacancies matter more than a wallpaper
-    for (const [key, value] of Object.entries(next)) {
-      if (key === KEYS.user || VACANCY_KEYS.includes(key)) continue;
-      if (key.startsWith(SYNC_PREFIX) && typeof value === "string" && local[key] !== value) stored = setRaw(key, value) && stored;
-    }
+    // what shrinks first, as it makes room; then the vacancies, which matter more than a bigger wallpaper
+    const others = Object.keys(next).filter((key) => key !== KEYS.user && !VACANCY_KEYS.includes(key) && key.startsWith(SYNC_PREFIX)
+      && typeof next[key] === "string" && local[key] !== next[key]);
+    const write = (key) => { stored = setRaw(key, next[key]) && stored; };
+    others.filter((key) => growth(local, next, key) <= 0).forEach(write);
+    stored = writeVacancies(local, next) && stored;
+    others.filter((key) => growth(local, next, key) > 0).forEach(write);
     adoptUser(next[KEYS.user]);
     emit("state"); // stores reload; what they write while reloading is not a user edit
   });
@@ -379,9 +384,18 @@ function takeBackStash() {
   const merged = merge(base, kept.data, now);
   setDirty(true);
   if (!sameData(merged, now) && !replaceLocal(merged)) {
-    // What did fit is here now and goes up with the next push. The stash keeps the rest only, measured against what
-    // is here, so a later merge cannot bring back what it delivered over newer edits.
-    setJSON(KEYS.stash, { ...stash, [uid]: { data: merged, base: fingerprint(localData()) } });
+    // What did fit is here now and goes up with the next push. Only the rest stays put aside, as it was (its value and
+    // its history), so a later merge can neither bring back what was delivered over newer edits nor lose what was not.
+    // The vacancy list and its progress count as one.
+    const here = localData();
+    const vacanciesLanded = VACANCY_KEYS.every((key) => here[key] === merged[key]);
+    const data = {}, keys = {};
+    for (const [key, value] of Object.entries(kept.data)) {
+      if (key === KEYS.user || (VACANCY_KEYS.includes(key) ? vacanciesLanded : here[key] === merged[key])) continue;
+      data[key] = value;
+      if (base.keys[key] !== undefined) keys[key] = base.keys[key];
+    }
+    setJSON(KEYS.stash, { ...stash, [uid]: { data, base: { keys, jobs: vacanciesLanded ? {} : base.jobs } } });
     return false;
   }
   delete stash[uid];

@@ -643,3 +643,91 @@ for (const reload of [false, true]) {
     assert.ok(companies(c).includes("Guest Co"));
   });
 }
+
+test("an unsent edit put aside comes back even when the cloud's older value could not be taken in its place", async () => {
+  const CV = "jobdesk2000_cv_v1", v0 = "CV v0 ".repeat(3000), v1 = "CV v1 ".repeat(3000);
+  const startA = { ...data([job("A Co")], { "A Co|Dev": fresh("a") }, "uA"), [CV]: v0 };
+  startCloud(startA, "uA");
+  const store = new QuotaStorage();
+  const page = await device("page", { store, seed: { jd2000_stash: JSON.stringify({ uA: { data: { ...startA, [CV]: v1 }, base: fingerprint(startA) } }) } });
+  page.users.setUser({ name: "Андрій", email: "a@example.com", gender: "m", uid: "uA" });
+  store.quota = store.used() + 3000; // the vacancies fit, a second CV does not
+  await page.sync.startSync("uA");
+  page.deliver();
+  await page.sync.flushSync();
+  page.sync.stopSync();
+  store.quota = Infinity; // the user frees space and opens the page again
+  const back = await device("page2", { store });
+  await back.sync.startSync("uA");
+  back.deliver();
+  await back.sync.flushSync();
+  assert.equal(cloud.data("uA")[CV], v1);
+  assert.equal(store.getItem("jd2000_stash"), null);
+});
+
+/* ----- what a nearly full storage writes first ----- */
+
+test("a cloud copy that frees more than it takes fits, whichever of its keys grows", async () => {
+  const start = data([job("Acme"), job("Old Co")], { "Acme|Dev": fresh(), "Old Co|Dev": fresh(LONG_NOTE) });
+  startCloud(start);
+  const phone = await synced("phone", start);
+  const store = new QuotaStorage();
+  const laptop = await synced("laptop", start, { store });
+  store.quota = store.used() + 5; // under the list's growth, far under what the progress frees
+  phone.jobs.removeJob("Old Co|Dev");
+  phone.jobs.addJob({ company: "Brand New Company Ltd", title: "Senior Developer" });
+  await phone.sync.flushSync();
+  laptop.deliver();
+  assert.deepEqual(companies(laptop.local()), ["Acme", "Brand New Company Ltd"]);
+
+  const startW = { ...data([job("Acme")], { "Acme|Dev": fresh() }), [WALL]: picture("W", 20) };
+  startCloud(startW);
+  const phone2 = await synced("phone2", startW);
+  const store2 = new QuotaStorage();
+  const laptop2 = await synced("laptop2", startW, { store: store2 });
+  store2.quota = store2.used() + 200;
+  phone2.store.setItem(WALL, picture("S", 5)); // a smaller wallpaper and a new vacancy in one copy
+  phone2.jobs.addJob({ company: "Gamma", title: "Dev" });
+  phone2.jobs.setJobField("Gamma|Dev", "note", LONG_NOTE);
+  await phone2.sync.flushSync();
+  laptop2.deliver();
+  assert.deepEqual(companies(laptop2.local()), ["Acme", "Gamma"]);
+  assert.equal(store2.getItem(WALL), picture("S", 5));
+});
+
+test("with room for one of them, a new vacancy goes in before a bigger wallpaper", async () => {
+  const start = { ...data([job("Acme")], { "Acme|Dev": fresh() }), [WALL]: picture("W", 1) };
+  startCloud(start);
+  const phone = await synced("phone", start);
+  const store = new QuotaStorage();
+  const laptop = await synced("laptop", start, { store });
+  store.quota = store.used() + 2500; // either fits alone (the picture grows by 2 KB, the vacancy by about 1.4), not both
+  phone.store.setItem(WALL, picture("B", 3));
+  phone.jobs.addJob({ company: "Gamma", title: "Dev" });
+  phone.jobs.setJobField("Gamma|Dev", "note", LONG_NOTE);
+  await phone.sync.flushSync();
+  laptop.deliver();
+  assert.deepEqual(companies(laptop.local()), ["Acme", "Gamma"]);
+  assert.equal(progress(laptop.local())["Gamma|Dev"].note, LONG_NOTE);
+});
+
+test("a note put aside that does not fit back in waits with its vacancy, and the vacancies are never read as removed", async () => {
+  const startA = data([job("A Co"), job("A Two")], { "A Co|Dev": fresh("a"), "A Two|Dev": fresh("two") }, "uA");
+  startCloud(startA, "uA");
+  const kept = data([job("A Co"), job("A Two")], { "A Co|Dev": fresh("x".repeat(3000)), "A Two|Dev": fresh("two") }, "uA");
+  const store = new QuotaStorage();
+  const page = await device("page", { store, seed: { jd2000_stash: JSON.stringify({ uA: { data: kept, base: fingerprint(startA) } }) } });
+  page.users.setUser({ name: "Андрій", email: "a@example.com", gender: "m", uid: "uA" });
+  store.quota = store.used() + 2500; // the list is unchanged, the long note does not fit
+  await page.sync.startSync("uA");
+  page.deliver();
+  await page.sync.flushSync();
+  page.sync.stopSync();
+  store.quota = Infinity;
+  const back = await device("page2", { store });
+  await back.sync.startSync("uA");
+  back.deliver();
+  await back.sync.flushSync();
+  assert.deepEqual(companies(cloud.data("uA")), ["A Co", "A Two"]);
+  assert.equal(progress(cloud.data("uA"))["A Co|Dev"].note, "x".repeat(3000));
+});
