@@ -1,6 +1,6 @@
 // Vacancies window: adding vacancies (by link, from pasted text or by hand), search and filters, and the board of cards.
 
-import { byId, html, raw, setHtml, safeUrl, todayISO } from "../core/dom.js";
+import { byId, html, raw, setHtml, safeUrl, todayISO, downloadFile } from "../core/dom.js";
 import { on } from "../core/events.js";
 import {
   PRIORITIES, NONE, allJobs, getJob, addJob, setJobField, removeJob, restoreJob, resetProgress, restoreProgress,
@@ -12,6 +12,7 @@ import { hasCV, persona } from "../data/profile.js";
 import { deadlineIn, daysText } from "../data/timeline.js";
 import { detectSpecialty } from "../content/phrases.js";
 import { analyzeVacancy, analyzeProfile, MIN_VACANCY_TEXT } from "../services/api.js";
+import { deadlineCalendar, calendarName } from "../services/calendar.js";
 import { say, reactToStatus } from "../ui/clippy.js";
 import { POSE } from "../fairy/render.js";
 import { openEditVacancy, openNewVacancy } from "./edit-vacancy.js";
@@ -116,12 +117,25 @@ function deadlineBadge(job) {
   return html`<span class="jtag dl ${level}">⏳ ${text}</span>`;
 }
 
+// the badge, and while the deadline is still ahead a button that puts it in the phone's or computer's calendar
+function deadlineSlot(job) {
+  const days = deadlineIn(job, todayISO()); // null without a deadline, and null >= 0 would be true
+  return html`${deadlineBadge(job)}${days !== null && days >= 0 ? html`<button type="button" class="ui jtag jcal" data-id="${job.id}" title="Додати дедлайн у календар">📅 у календар</button>` : ""}`;
+}
+
+function addToCalendar(id) {
+  const job = getJob(id), ics = job && deadlineCalendar(job);
+  if (!ics) return;
+  downloadFile(calendarName(job), ics, "text/calendar;charset=utf-8");
+  toast("Подію збережено ✦ відкрий файл, і дедлайн зʼявиться в календарі");
+}
+
 function card(job, g) {
   const folded = isCollapsed(job.id);
   const tags = TAGS.filter(([key]) => job[key] !== NONE).map(([key, icon]) => html`<span class="jtag">${icon} ${job[key]}</span>`);
   return html`<div class="jobcard" data-id="${job.id}" data-prio="${job.prio}">
     ${cardHead(job, folded)}
-    <div class="jt">${job.title}</div><div class="jc">${job.company}</div><div>${tags}<span class="dl-slot">${deadlineBadge(job)}</span></div>
+    <div class="jt">${job.title}</div><div class="jc">${job.company}</div><div>${tags}<span class="dl-slot">${deadlineSlot(job)}</span></div>
     ${folded ? "" : cardDetails(job)}
     ${cardFoot(job, g)}
   </div>`;
@@ -202,10 +216,12 @@ function onBoardInput(e) {
   if (!el.matches("input.js-f, textarea.js-f")) return;
   const job = setJobField(el.dataset.id, el.dataset.k, el.value);
   // the card is not redrawn while the user types, so only its deadline badge follows
-  if (job && el.dataset.k === "deadline") setHtml(el.closest(".jobcard").querySelector(".dl-slot"), deadlineBadge(job));
+  if (job && el.dataset.k === "deadline") setHtml(el.closest(".jobcard").querySelector(".dl-slot"), deadlineSlot(job));
 }
 
 function onBoardClick(e) {
+  const cal = e.target.closest(".jcal");
+  if (cal) { addToCalendar(cal.dataset.id); return; }
   const btn = e.target.closest(".jtools button");
   if (!btn) return;
   const id = btn.dataset.id;

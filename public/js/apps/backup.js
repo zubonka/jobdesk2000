@@ -1,7 +1,7 @@
 // START menu: save a copy of the data, restore it, and save the vacancies as a table. Works for guests too:
 // for them the copy is the only way to move their vacancies to another browser.
 
-import { byId } from "../core/dom.js";
+import { byId, downloadFile } from "../core/dom.js";
 import { on } from "../core/events.js";
 import { allJobs } from "../data/jobs.js";
 import { backupJSON, backupName, parseBackup, restoreBackup, vacanciesCSV, tableName } from "../services/backup.js";
@@ -10,25 +10,14 @@ import { toast } from "../ui/toast.js";
 
 const MAX_BACKUP_BYTES = 20 * 1024 * 1024; // a copy with a big wallpaper is a few MB
 
-function download(name, text, type) {
-  const url = URL.createObjectURL(new Blob([text], { type }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
-}
-
 function saveCopy() {
-  download(backupName(), backupJSON(), "application/json");
+  downloadFile(backupName(), backupJSON(), "application/json");
   toast("Копію збережено ✦ шукай файл у завантаженнях");
 }
 
 function saveTable() {
   if (!allJobs().length) { toast("Поки немає вакансій для таблиці ✦"); return; }
-  download(tableName(), vacanciesCSV(), "text/csv;charset=utf-8");
+  downloadFile(tableName(), vacanciesCSV(), "text/csv;charset=utf-8");
   toast("Таблицю збережено ✦ відкривай в Excel чи Google Таблицях");
 }
 

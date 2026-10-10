@@ -107,6 +107,16 @@ test("a guest adds vacancies by text, by link and by hand, edits, filters and re
   const card = win.locator(".jobcard:visible", { hasText: "Label Records" });
   await card.locator('input[data-k="deadline"]').fill(tomorrow);
   await expect(card.locator(".jtag.dl")).toHaveText("⏳ дедлайн завтра");
+
+  // and a button that saves the deadline as an event for the phone's or computer's calendar
+  await expect(win.locator(".jobcard:visible .jcal")).toHaveCount(1);
+  const [event] = await Promise.all([page.waitForEvent("download"), card.locator(".jcal").click()]);
+  const day = tomorrow.replaceAll("-", "");
+  expect(event.suggestedFilename()).toBe(`jobdesk2000-deadline-${day}.ics`);
+  const ics = fs.readFileSync(await event.path(), "utf8");
+  expect(ics).toContain(`\r\nDTSTART;VALUE=DATE:${day}\r\n`);
+  expect(ics).toContain("\r\nSUMMARY:⏳ Дедлайн: Label Records\\, ");
+  await expect(page.locator("#toast")).toContainText("Подію збережено");
   expect(await cspViolations(page)).toEqual([]);
 });
 

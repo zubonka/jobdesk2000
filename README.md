@@ -12,6 +12,7 @@ Two Netlify functions do the AI work. Guests keep everything in the browser; sig
 
 - Vacancies by link, pasted text or by hand; the AI fills in company, title, salary and format.
   Search (the `/` key), filters, priorities, deadline badges and a reminder from the fairy three days ahead.
+  A deadline still ahead can be saved as a calendar event (an `.ics` file with a reminder at 9:00 the day before).
 - Statuses with dates and notes; statistics with a funnel (applied, interviews, offers) and the last 8 weeks.
 - Cover letters from the CV (PDF or pasted text) in a chat that rewrites them on request (signed-in users).
 - A desktop of draggable, minimisable windows, tile mode, light and dark themes, a fairy to choose and colour,
@@ -33,7 +34,7 @@ public/                        the site, published as is
   favicon.ico, site.webmanifest, robots.txt, sitemap.xml
   js/
     main.js                    entry point: loads data, starts the shell and the apps, then Firebase
-    core/dom.js                byId/qsa, html`` (escapes every value), raw, setHtml, safeUrl, todayISO
+    core/dom.js                byId/qsa, html`` (escapes every value), raw, setHtml, safeUrl, todayISO, downloadFile
     core/events.js             app-wide on/emit; the event names are listed at the top
     core/storage.js            localStorage keys and safe access; reports writes to cloud sync
     data/user.js               the signed-in user as the UI sees it, gv() for gendered word forms
@@ -51,6 +52,7 @@ public/                        the site, published as is
     services/sync.js           mirrors the synced keys to Firestore users/<uid> (transactions, one push at a time)
     services/sync-merge.js     the three-way merge behind it, free of Firebase so it is unit-tested
     services/backup.js         the JSON copy of the data, its restore and the CSV table
+    services/calendar.js       a vacancy's deadline as an iCalendar (.ics) event
     services/offline.js        registers the service worker (public/sw.js)
     services/pdf.js            PDF text extraction; pdf.js comes from the CDN on first use
     ui/windows.js              window manager and the APPS registry

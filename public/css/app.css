@@ -280,6 +280,8 @@ label.fl{font-size:.875rem; color:var(--dim); display:block; margin-bottom:.25re
 .jtag.dl.soon{color:var(--ink); border-color:var(--warn);}
 .jtag.dl.hot{color:#2a1a00; background:var(--warn); border-color:var(--warn);}
 .jtag.dl.late{color:#fff; background:var(--accent2); border-color:var(--accent2);}
+.jtag.jcal{color:var(--accent-ink); border-color:var(--accent); cursor:pointer;}
+.jtag.jcal:hover{background:var(--accent); color:#0a0618;}
 .jrow{display:flex; gap:.375rem; align-items:center; margin-top:.5rem;}
 .jrow label{font-size:.75rem; color:var(--dim); width:3.75rem; flex:none;}
 .jrow input, .jrow textarea{flex:1; font-size:.875rem; padding:.3125rem .4375rem;}
@@ -422,6 +424,7 @@ h3.wh.h16{font-size:1rem;}
   .win-btns .win-btn{width:1.875rem; height:1.875rem; line-height:1.75rem; font-size:1rem;}
   .jtools{gap:.25rem;}
   .jtools .ui{min-width:2.25rem; min-height:2.25rem; display:inline-flex; align-items:center; justify-content:center; border-radius:.5rem;}
+  .jtag.jcal{min-height:2.25rem; display:inline-flex; align-items:center; vertical-align:middle;}
   .jrow textarea, .jrow input{min-height:2.375rem;}
   .tb-btn, .tb-task, #startbtn{min-height:2.25rem;}
   .btn.sm{min-height:2.25rem;}
