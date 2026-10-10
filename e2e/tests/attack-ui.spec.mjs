@@ -642,3 +642,99 @@ test("@layout fairy, notice and dialogs at once on a phone", async ({ page }, te
   await page.screenshot({ path: `test-results/attack-ui/screens/${testInfo.project.name}-edit-while-fairy.png` });
   expect.soft(offscreen(await layoutProblems(page, { touch })), "edit dialog while the fairy talks").toEqual([]);
 });
+
+/* ===================== the vacancies window: the paste box, the keyboard, shared text ===================== */
+
+test("after a blocked link the paste button leads into the box, and the offered link leaves once it is closed", async ({ page }, testInfo) => {
+  test.skip(!isDesktopProject(testInfo));
+  await seedVacancies(page);
+  await openApp(page);
+  await openWindow(page, "vacancies");
+  const win = page.locator("#win-vacancies");
+  await win.locator("#add-url").fill("https://localhost/internal");
+  await win.locator("#add-url").press("Enter");
+  await expect(win.locator("#paste-box")).toBeVisible();
+  await win.locator("#btn-paste").click(); // what the message says to press
+  await expect(win.locator("#paste-box")).toBeVisible();
+  await expect(win.locator("#a-paste")).toBeFocused();
+  await win.locator("#btn-paste").click(); // the next press closes the box as usual
+  await expect(win.locator("#paste-box")).toBeHidden();
+  await win.locator("#btn-paste").click();
+  await expect(win.locator("#a-paste-url"), "the blocked vacancy's link does not wait for the next text").toHaveValue("");
+});
+
+test("folding a card or saving its edit from the keyboard keeps the focus on that card's button", async ({ page }, testInfo) => {
+  test.skip(!isDesktopProject(testInfo));
+  await seedVacancies(page);
+  await openApp(page);
+  await openWindow(page, "vacancies");
+  const card = page.locator("#win-vacancies .jobcard", { hasText: "Label Records" });
+  await card.locator(".jcol").focus();
+  await page.keyboard.press("Enter");
+  await expect(card.locator(".jcol")).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(card.locator('textarea[data-k="note"]')).toBeVisible();
+  await card.locator(".jedit").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#edit-overlay")).toHaveClass(/open/);
+  await page.locator("#ev-salary").fill("40 000 грн");
+  await page.locator("#ev-save").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#edit-overlay")).not.toHaveClass(/open/);
+  await expect(card.locator(".jedit")).toBeFocused();
+});
+
+test("the / key opens the search in the Ukrainian keyboard layout too", async ({ page }, testInfo) => {
+  test.skip(!isDesktopProject(testInfo));
+  await seedVacancies(page);
+  await openApp(page);
+  await openWindow(page, "vacancies");
+  await page.locator("#win-vacancies .win-head .ti").click();
+  // the physical / key types "." in the Ukrainian layout
+  await page.evaluate(() => document.activeElement.dispatchEvent(new KeyboardEvent("keydown", { key: ".", code: "Slash", bubbles: true, cancelable: true })));
+  await expect(page.locator("#f-search")).toBeFocused();
+});
+
+test("a vacancy shared to the app as text without a link waits in the paste box", async ({ page }, testInfo) => {
+  test.skip(isLayout(testInfo));
+  await seedVacancies(page);
+  await page.goto("/?title=&text=" + encodeURIComponent(VACANCY_TEXT));
+  await page.waitForFunction(() => !!window.jobdesk);
+  await expect(page.locator("#win-vacancies")).toHaveClass(/open/);
+  await expect(page.locator("#paste-box")).toBeVisible();
+  await expect(page.locator("#a-paste")).toHaveValue(VACANCY_TEXT);
+  expect(new URL(page.url()).search, "a reload does not bring it back").toBe("");
+});
+
+test("minimising a window from its taskbar button keeps the keyboard on that button", async ({ page }, testInfo) => {
+  test.skip(!isDesktopProject(testInfo));
+  await seedVacancies(page);
+  await openApp(page);
+  await openWindow(page, "stats");
+  const task = page.locator('.tb-task[data-app="stats"]');
+  await task.focus();
+  await page.keyboard.press("Enter"); // the window in front: its button minimises it
+  await expect(page.locator("#win-stats")).toHaveClass(/minimized/);
+  await expect(task).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#win-stats")).toBeFocused();
+});
+
+test("on a touch tablet the first tap after dragging an icon with a finger opens its window", async ({ browser, baseURL }, testInfo) => {
+  test.skip(!isDesktopProject(testInfo), "needs Chromium's CDP touch input");
+  const context = await browser.newContext({ baseURL, viewport: { width: 1024, height: 768 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2, serviceWorkers: "block" });
+  const page = await context.newPage();
+  await seedVacancies(page);
+  await openApp(page);
+  const icon = page.locator('.d-icon[data-open="valya"]');
+  const b = await icon.boundingBox();
+  const cdp = await context.newCDPSession(page);
+  const x0 = b.x + b.width / 2, y0 = b.y + b.height / 2;
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: x0, y: y0 }] });
+  for (let i = 1; i <= 12; i++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x0 + i * 30, y: y0 }] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await page.waitForTimeout(1500); // a tap within a moment of the drag would count as its double tap
+  await icon.tap();
+  await expect(page.locator("#win-valya")).toHaveClass(/open/);
+  await context.close();
+});

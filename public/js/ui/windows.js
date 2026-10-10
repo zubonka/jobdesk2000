@@ -52,7 +52,7 @@ function giveFocusBack(w, hadFocus, ...candidates) {
   delete focusBefore[w.dataset.app];
   if (!hadFocus) return;
   const target = [...candidates, before].find((el) => el?.isConnected && el.getClientRects().length);
-  target?.focus({ preventScroll: true });
+  (target || byId("startbtn"))?.focus({ preventScroll: true }); // the opener is gone (a START menu item, a rebuilt button)
 }
 
 // fn runs every time the app's window is opened

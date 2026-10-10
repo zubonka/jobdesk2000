@@ -80,7 +80,11 @@ function saveChanges(fields) {
   if (error === "duplicate") { setMsg("Така вакансія вже є ✦"); return; }
   close();
   // no job: it was removed meanwhile (a cloud update), so there is nothing left to save into
-  if (job) say("Вакансію оновлено ✦", POSE.idle, 5000);
+  if (!job) return;
+  // the board was redrawn under the dialog: the keyboard goes back to this card's ✏️, under its new name too
+  const lost = document.activeElement === document.body || byId(DIALOG).contains(document.activeElement);
+  if (lost) [...document.querySelectorAll("#board .jedit")].find((b) => b.dataset.id === job.id)?.focus({ preventScroll: true });
+  say("Вакансію оновлено ✦", POSE.idle, 5000);
 }
 
 function save() {

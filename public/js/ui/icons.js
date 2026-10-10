@@ -71,6 +71,8 @@ function layoutIcons() {
 function makeDraggable(ic) {
   let drag = null;
   ic.addEventListener("pointerdown", (e) => {
+    // a finger drag ends without a click, so its mark would swallow the next tap; a new press starts fresh
+    delete ic.dataset.justDragged;
     if (e.button !== 0 || isMobile()) return;
     const r = ic.getBoundingClientRect();
     drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, sx: e.clientX, sy: e.clientY, moved: false };

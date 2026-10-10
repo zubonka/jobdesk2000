@@ -149,12 +149,17 @@ function card(job, g) {
   </div>`;
 }
 
-// A redraw (a change from another device, a filter) keeps the field the user is typing in, caret included.
+const CARD_TOOLS = ["jcol", "jedit", "jdel"];
+
+// A redraw (a change from another device, a filter, folding a card) keeps the field the user is typing in, caret
+// included, or the card button the keyboard is on.
 function keepingFocus(draw) {
   const board = byId("board"), el = document.activeElement;
-  const field = el && board.contains(el) && el.dataset.id ? { id: el.dataset.id, k: el.dataset.k, start: el.selectionStart, end: el.selectionEnd } : null;
+  const tool = el && CARD_TOOLS.find((c) => el.classList?.contains(c));
+  const field = el && board.contains(el) && el.dataset.id ? { id: el.dataset.id, k: el.dataset.k, tool, start: el.selectionStart, end: el.selectionEnd } : null;
   draw();
-  const again = field && [...board.querySelectorAll(".js-f")].find((x) => x.dataset.id === field.id && x.dataset.k === field.k);
+  const again = field && [...board.querySelectorAll(field.tool ? "." + field.tool : ".js-f")]
+    .find((x) => x.dataset.id === field.id && (field.tool || x.dataset.k === field.k));
   if (!again) return;
   again.focus({ preventScroll: true });
   if (field.start != null) try { again.setSelectionRange(field.start, field.end); } catch (e) { /* a date field has no caret */ }
@@ -257,10 +262,30 @@ function addAnalyzed(d, url) {
 
 // Many job sites block the server-side page fetch. The pasted-text route still works, so it opens
 // with the link already filled in.
+let offeredLink = "";   // that link: it belongs to the blocked vacancy only
+let offerOpen = false;  // the box is open for it, so the button the message names leads into the box
 function offerPaste(url) {
   setMsg("Не вдалося відкрити сторінку (сайт міг заблокувати) ✦ Скопіюй текст вакансії й натисни «📋 Вставити текст вакансії».");
   byId("a-paste-url").value = url;
   byId("paste-box").hidden = false;
+  offeredLink = url;
+  offerOpen = true;
+}
+
+// Another vacancy is being added: the offered link leaves the paste box, unless it was changed or a text was
+// pasted for it meanwhile.
+function withdrawOffer() {
+  if (offeredLink && byId("a-paste-url").value.trim() === offeredLink && !byId("a-paste").value.trim()) byId("a-paste-url").value = "";
+  offeredLink = "";
+  offerOpen = false;
+}
+
+function togglePasteBox() {
+  const box = byId("paste-box");
+  if (offerOpen && !box.hidden) { offerOpen = false; byId("a-paste").focus(); return; }
+  offerOpen = false;
+  box.hidden = !box.hidden;
+  if (box.hidden) withdrawOffer();
 }
 
 // Clears a field after its vacancy was added, unless the user typed the next one there meanwhile.
@@ -269,6 +294,7 @@ const clearIfStill = (id, value) => { if (byId(id).value.trim() === value) byId(
 async function addFromUrl() {
   const typed = byId("add-url").value.trim();
   if (!typed) { setMsg("Встав посилання ✦"); return; }
+  withdrawOffer();
   const link = normalizeUrl(typed);
   const url = link === "#" ? typed : link; // "site.com/job" is a link too; anything else the server explains
   setMsg("Фея аналізує вакансію ✦...");
@@ -296,6 +322,7 @@ async function addFromText() {
   const untouched = byId("a-paste").value.trim() === text;
   clearIfStill("a-paste", text);
   clearIfStill("a-paste-url", link);
+  if (link === offeredLink) { offeredLink = ""; offerOpen = false; }
   if (untouched) byId("paste-box").hidden = true;
   say("Розібрала текст і додала " + companyOr(d) + " ✦", POSE.happy, 7000);
 }
@@ -357,16 +384,28 @@ export function takeSharedLink() {
   const add = normalizeUrl(params.get("add"));
   const link = (add !== "#" && add) || firstLink(params.get("url")) || firstLink(params.get("text"));
   window.history.replaceState(null, "", window.location.pathname + window.location.hash); // a reload must not bring it back
-  if (!link) return;
+  if (!link) {
+    // a vacancy shared as text: it waits in the paste box
+    const text = [params.get("title"), params.get("text")].filter(Boolean).join("\n").trim();
+    if (text.length < MIN_VACANCY_TEXT) return;
+    openWin("vacancies");
+    byId("paste-box").hidden = false;
+    byId("a-paste").value = text;
+    setMsg("Текст вакансії вже тут ✦ натисни «✦ Проаналізувати текст», і фея розбере вакансію.");
+    byId("a-paste").focus();
+    return;
+  }
   openWin("vacancies");
   byId("add-url").value = link;
   setMsg("Посилання вже тут ✦ натисни «✦ Аналіз», і фея розбере вакансію.");
   byId("add-url").focus();
 }
 
-// "/" jumps to the search box while the vacancies window is in front
+// "/" jumps to the search box while the vacancies window is in front. The key itself counts too: in the Ukrainian
+// layout it types "."
 function onShortcut(e) {
-  if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey || !isFocused("vacancies") || document.querySelector(".overlay.open")) return;
+  const slash = e.key === "/" || (e.code === "Slash" && !e.shiftKey);
+  if (!slash || e.ctrlKey || e.metaKey || e.altKey || !isFocused("vacancies") || document.querySelector(".overlay.open")) return;
   if (e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable]")) return;
   e.preventDefault();
   byId("f-search").focus();
@@ -387,12 +426,9 @@ export function initVacancies() {
   byId("add-url").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !byId("btn-url-add").disabled) addFromUrl();
   });
-  byId("btn-paste").addEventListener("click", () => {
-    const box = byId("paste-box");
-    box.hidden = !box.hidden;
-  });
+  byId("btn-paste").addEventListener("click", togglePasteBox);
   byId("a-paste-go").addEventListener("click", addFromText);
-  byId("btn-manual").addEventListener("click", () => openNewVacancy({}));
+  byId("btn-manual").addEventListener("click", () => { withdrawOffer(); openNewVacancy({}); });
 
   // a cloud replace ("state") reaches this module as jobs {type: "reload"}, emitted by main.js after loadJobs()
   on("jobs", onJobsChange);

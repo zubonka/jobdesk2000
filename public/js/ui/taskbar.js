@@ -8,7 +8,9 @@ import { APPS, APP_NAMES, isOpen, isFocused, isMinimized, activateWin, minimizeW
 function renderTasks() {
   const wrap = byId("tb-tasks");
   const open = APP_NAMES.filter(isOpen);
+  const kept = document.activeElement?.closest?.(".tb-task")?.dataset.app; // a rebuild must not drop the keyboard focus
   setHtml(wrap, html`${open.map((app) => html`<button type="button" class="ui tb-task${isFocused(app) ? " active" : ""}${isMinimized(app) ? " min" : ""}" data-app="${app}" title="${APPS[app].label}"><span class="tb-ic">${APPS[app].icon}</span><span class="lbl">${APPS[app].label}</span></button>`)}`);
+  if (kept) [...wrap.querySelectorAll(".tb-task")].find((b) => b.dataset.app === kept)?.focus({ preventScroll: true });
 }
 
 function renderAccount() {
