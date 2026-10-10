@@ -10,7 +10,9 @@ const GUEST_WINDOWS = ["vacancies", "stats", "about", "valya", "readme"];
 
 // Checks what is on screen now. The script goes in through the debugger, so the page's content policy never sees it.
 async function check(page, screen) {
-  await page.waitForTimeout(350); // let open/close animations settle: a half-faded text has a lower contrast
+  // a half-faded text has a lower contrast: wait for the windows, dialogs and the fairy to finish appearing
+  // (looping decorations never finish and do not count)
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running" || a.effect?.getComputedTiming().iterations === Infinity), null, { timeout: 5000 }).catch(() => {});
   if (!(await page.evaluate(() => !!window.axe))) await page.evaluate(AXE);
   const violations = await page.evaluate(async () => {
     const result = await window.axe.run(document, {
