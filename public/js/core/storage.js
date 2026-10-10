@@ -22,6 +22,8 @@ export const KEYS = {
   renames: "jd2000_renames",         // { <old job id>: <new job id> } renamed here and not in the cloud yet
   joining: "jd2000_joining",         // uid signed in here whose first sync has not run yet, this device only
   signedOut: "jd2000_signed_out",    // uid signed out here while Firebase could not be reached, this device only
+  stash: "jd2000_stash",             // { <uid>: { data, base } } an account's changes that never reached its cloud
+                                     // copy, put aside when another account signed in here; this device only
 };
 
 // Keys with this prefix are mirrored to the cloud for signed-in users.

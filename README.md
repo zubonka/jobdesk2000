@@ -249,7 +249,8 @@ formats are shared with the original single-file app and with existing cloud cop
 - On sign-in vacancies created here as a guest join the account, also after a reload before the first sync
   (`jd2000_joining`). A vacancy both have is joined field by field: what the guest filled in is added, the
   account's values win where both have one, and two notes are both kept. A device that holds another account's
-  data never uploads it. Signing out removes the account's data from the device only when the cloud has all of
+  data never uploads it; that account's changes that never reached its cloud copy are put aside on the device
+  (`jd2000_stash`) and merged back when it signs in there again. Signing out removes the account's data from the device only when the cloud has all of
   it; signing out while Firebase cannot be reached ends the session on the next load (`jd2000_signed_out`).
 - `tests/web/jobs.test.mjs` pins these formats against the original app.
 

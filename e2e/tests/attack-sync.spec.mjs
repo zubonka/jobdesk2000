@@ -466,6 +466,14 @@ test("account A signs out while the cloud is unreachable, then account B signs i
   expect(textB).not.toContain("A Unsynced Co");
   expect(await localCompanies(page)).toEqual([]);
   expect(await cloudCompanies(uidA)).toEqual(["A Synced Co"]);
+
+  // A's change that never reached its cloud copy was put aside on the device and comes back when A signs in again
+  await signOut(page);
+  await signIn(page, emailA);
+  await waitSynced(page);
+  await expect.poll(async () => (await cloudCompanies(uidA)).sort(), { timeout: 20_000 }).toEqual(["A Synced Co", "A Unsynced Co"]);
+  expect((await localCompanies(page)).sort()).toEqual(["A Synced Co", "A Unsynced Co"]);
+  expect(await page.evaluate(() => localStorage.getItem("jd2000_stash"))).toBeNull();
 });
 
 test("signing out with an unsynced edit keeps it on the device and signing back in uploads it", async ({ page }, testInfo) => {
