@@ -34,7 +34,7 @@ const LINK_LABELS = { not_applied: "Податися ↗", reject: "Перегл
 // "jobs" changes that alter what the board shows. Date and note edits are not among them,
 // so a card is never redrawn under the user's cursor while they type.
 const BOARD_CHANGES = ["add", "remove", "restore", "update", "reload", "reset", "import", "collapse"];
-const BOARD_FIELDS = ["status", "prio"];
+const BOARD_FIELDS = ["prio"]; // a status change redraws its own card only (redrawCard)
 
 const setMsg = (text) => { byId("add-url-msg").textContent = text; };
 const selected = (flag) => (flag ? raw(" selected") : "");
@@ -72,7 +72,7 @@ function visibleJobs() {
 function resetFilters() {
   for (const [id] of FILTERS) byId(id).value = "";
   byId("f-search").value = "";
-  renderBoard();
+  applyFilters();
 }
 
 /* ----- board ----- */
@@ -116,7 +116,7 @@ function deadlineBadge(job) {
 function card(job, g) {
   const folded = isCollapsed(job.id);
   const tags = TAGS.filter(([key]) => job[key] !== NONE).map(([key, icon]) => html`<span class="jtag">${icon} ${job[key]}</span>`);
-  return html`<div class="jobcard">
+  return html`<div class="jobcard" data-id="${job.id}" data-prio="${job.prio}">
     ${cardHead(job, folded)}
     <div class="jt">${job.title}</div><div class="jc">${job.company}</div><div>${tags}<span class="dl-slot">${deadlineBadge(job)}</span></div>
     ${folded ? "" : cardDetails(job)}
@@ -135,15 +135,31 @@ function keepingFocus(draw) {
   if (field.start != null) try { again.setSelectionRange(field.start, field.end); } catch (e) { /* a date field has no caret */ }
 }
 
+// The board holds a card for every vacancy; search and filters only show and hide cards (applyFilters), so a
+// keystroke never rebuilds hundreds of cards with their fields.
 function renderBoard() {
-  const jobs = visibleJobs(), g = gender();
+  const jobs = allJobs(), g = gender();
   const groups = PRIORITIES.map((prio) => [prio, jobs.filter((job) => job.prio === prio)]).filter(([, list]) => list.length);
-  const empty = allJobs().length
-    ? html`<div class="muted empty">Нічого не знайдено</div>`
-    : html`<div class="muted empty">Тут поки порожньо ✦ Встав посилання чи текст вакансії вгорі або додай її вручну, і вона зʼявиться тут.</div>`;
-  keepingFocus(() => setHtml(byId("board"), groups.length
-    ? html`${groups.map(([prio, list]) => html`<div class="gh">✦ ${prio} [${list.length}]</div>${list.map((job) => card(job, g))}`)}`
-    : empty));
+  keepingFocus(() => setHtml(byId("board"), jobs.length
+    ? html`${groups.map(([prio, list]) => html`<div class="gh" data-prio="${prio}">✦ ${prio} [<span class="gh-n">${list.length}</span>]</div>${list.map((job) => card(job, g))}`)}<div class="muted empty" hidden>Нічого не знайдено</div>`
+    : html`<div class="muted empty">Тут поки порожньо ✦ Встав посилання чи текст вакансії вгорі або додай її вручну, і вона зʼявиться тут.</div>`));
+  applyFilters();
+}
+
+function applyFilters() {
+  const board = byId("board");
+  if (!allJobs().length) return;
+  const shown = new Set(visibleJobs().map((job) => job.id)), perGroup = {};
+  for (const el of board.querySelectorAll(".jobcard")) {
+    el.hidden = !shown.has(el.dataset.id);
+    if (!el.hidden) perGroup[el.dataset.prio] = (perGroup[el.dataset.prio] || 0) + 1;
+  }
+  for (const head of board.querySelectorAll(".gh")) {
+    const n = perGroup[head.dataset.prio] || 0;
+    head.hidden = !n;
+    head.querySelector(".gh-n").textContent = n;
+  }
+  board.querySelector(".empty").hidden = shown.size > 0;
 }
 
 function refresh() {
@@ -271,9 +287,22 @@ function learnFromVacancy(job) {
     .catch(() => { /* the fairy keeps her generic phrases; the next added vacancy tries again */ });
 }
 
+// A new status changes one card only (its link and deadline badge); the rest of the board stays as it is.
+function redrawCard(id) {
+  const old = [...byId("board").querySelectorAll(".jobcard")].find((el) => el.dataset.id === id), job = getJob(id);
+  if (!old || !job) { refresh(); return; }
+  keepingFocus(() => {
+    const holder = document.createElement("div");
+    setHtml(holder, card(job, gender()));
+    old.replaceWith(holder.firstElementChild);
+  });
+  applyFilters();
+}
+
 function onJobsChange({ type, id, key }) {
   if (type === "add") learnFromVacancy(getJob(id));
-  if (BOARD_CHANGES.includes(type) || (type === "field" && BOARD_FIELDS.includes(key))) refresh();
+  if (type === "field" && key === "status") redrawCard(id);
+  else if (BOARD_CHANGES.includes(type) || (type === "field" && BOARD_FIELDS.includes(key))) refresh();
 }
 
 const short = (text, max = 60) => (text.length > max ? text.slice(0, max - 1) + "…" : text);
@@ -321,8 +350,8 @@ export function initVacancies() {
   board.addEventListener("change", onBoardChange);
   board.addEventListener("input", onBoardInput);
   board.addEventListener("click", onBoardClick);
-  for (const [id] of FILTERS) byId(id).addEventListener("change", renderBoard);
-  byId("f-search").addEventListener("input", renderBoard);
+  for (const [id] of FILTERS) byId(id).addEventListener("change", applyFilters);
+  byId("f-search").addEventListener("input", applyFilters);
   document.addEventListener("keydown", onShortcut);
   byId("btn-reset").addEventListener("click", resetFilters);
   byId("btn-clear").addEventListener("click", clearProgress);

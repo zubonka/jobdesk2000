@@ -82,6 +82,7 @@ function scheduleIdle() {
 }
 
 export function greet() {
+  if (isTalking()) return; // a sign-in that was quicker than the greeting already has her talking
   const name = fairyName();
   say((name ? name + " вітає тебе ✦ " : "Привіт ✦ ") + "клікни іконку, щоб відкрити вікно.", POSE.idle, 10000);
 }

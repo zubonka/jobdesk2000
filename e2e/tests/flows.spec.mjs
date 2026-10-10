@@ -22,7 +22,7 @@ test("a guest adds vacancies by text, by link and by hand, edits, filters and re
   await win.locator("#a-paste-url").fill("acme.example.com/jobs/42");
   await win.locator("#a-paste-go").click();
   await expect(win.locator("#add-url-msg")).toHaveText("Додано: Mock Studio ✦");
-  await expect(win.locator(".jobcard")).toHaveCount(1);
+  await expect(win.locator(".jobcard:visible")).toHaveCount(1);
   await expect(win.locator(".jlink").first()).toHaveAttribute("href", "https://acme.example.com/jobs/42");
 
   // a link the server refuses to fetch opens the paste route with the link filled in
@@ -42,7 +42,7 @@ test("a guest adds vacancies by text, by link and by hand, edits, filters and re
   await edit.locator("#ev-prio").selectOption("Подумати");
   await edit.locator("#ev-save").click();
   await expect(edit).not.toHaveClass(/open/);
-  const handmade = win.locator(".jobcard", { hasText: "Label & Co" });
+  const handmade = win.locator(".jobcard:visible", { hasText: "Label & Co" });
   await expect(handmade.locator(".jt")).toHaveText('<img src=x onerror="window.__xss=1">Motion Designer');
   await expect(handmade.locator(".jlink")).toHaveAttribute("href", "#");
   expect(await page.evaluate(() => window.__xss)).toBeUndefined();
@@ -51,10 +51,10 @@ test("a guest adds vacancies by text, by link and by hand, edits, filters and re
   await handmade.locator(".jedit").click();
   await edit.locator("#ev-company").fill("Label Records");
   await edit.locator("#ev-save").click();
-  await expect(win.locator(".jobcard", { hasText: "Label Records" })).toHaveCount(1);
+  await expect(win.locator(".jobcard:visible", { hasText: "Label Records" })).toHaveCount(1);
 
   // status change stamps the date and feeds the statistics
-  const first = win.locator(".jobcard").first();
+  const first = win.locator(".jobcard:visible").first();
   await first.locator(".st-sel").selectOption("applied");
   await expect(first.locator('input[data-k="date"]')).not.toHaveValue("");
   await openWindow(page, "stats");
@@ -64,9 +64,9 @@ test("a guest adds vacancies by text, by link and by hand, edits, filters and re
 
   // filters
   await win.locator("#f-status").selectOption("applied");
-  await expect(win.locator(".jobcard")).toHaveCount(1);
+  await expect(win.locator(".jobcard:visible")).toHaveCount(1);
   await win.locator("#btn-reset").click();
-  await expect(win.locator(".jobcard")).toHaveCount(2);
+  await expect(win.locator(".jobcard:visible")).toHaveCount(2);
 
   // a note survives a reload
   await first.locator('textarea[data-k="note"]').fill("HR: Олена, дзвінок у пʼятницю");
@@ -75,28 +75,28 @@ test("a guest adds vacancies by text, by link and by hand, edits, filters and re
   await expect(win.locator('textarea[data-k="note"]').first()).toHaveValue("HR: Олена, дзвінок у пʼятницю");
 
   // removal asks first, in the app's own dialog; "no" keeps the card
-  await win.locator(".jobcard", { hasText: "Label Records" }).locator(".jdel").click();
+  await win.locator(".jobcard:visible", { hasText: "Label Records" }).locator(".jdel").click();
   await expect(page.locator("#confirm-text")).toHaveText("Видалити «Label Records — <img src=x onerror=\"window.__xss=1\">Motion Designer» зі списку?");
   await page.keyboard.press("Escape");
-  await expect(win.locator(".jobcard")).toHaveCount(2);
-  await win.locator(".jobcard", { hasText: "Label Records" }).locator(".jdel").click();
+  await expect(win.locator(".jobcard:visible")).toHaveCount(2);
+  await win.locator(".jobcard:visible", { hasText: "Label Records" }).locator(".jdel").click();
   await confirmYes(page);
-  await expect(win.locator(".jobcard")).toHaveCount(1);
+  await expect(win.locator(".jobcard:visible")).toHaveCount(1);
 
   // a removal can be undone from the notice, with everything the card had
   await expect(page.locator("#toast")).toContainText("Вакансію прибрано");
   await page.locator("#toast .toast-act").click();
-  await expect(win.locator(".jobcard")).toHaveCount(2);
-  await expect(win.locator(".jobcard", { hasText: "Label Records" })).toHaveCount(1);
+  await expect(win.locator(".jobcard:visible")).toHaveCount(2);
+  await expect(win.locator(".jobcard:visible", { hasText: "Label Records" })).toHaveCount(1);
 
   // search looks through titles, companies and notes
   await win.locator("#f-search").fill("пʼятницю");
-  await expect(win.locator(".jobcard")).toHaveCount(1);
+  await expect(win.locator(".jobcard:visible")).toHaveCount(1);
   await win.locator("#f-search").fill("нема такого");
   await expect(win.locator("#board")).toContainText("Нічого не знайдено");
   await win.locator("#btn-reset").click();
   await expect(win.locator("#f-search")).toHaveValue("");
-  await expect(win.locator(".jobcard")).toHaveCount(2);
+  await expect(win.locator(".jobcard:visible")).toHaveCount(2);
 
   // a deadline tomorrow gets a badge at once, without redrawing the card
   const tomorrow = await page.evaluate(() => {
@@ -104,7 +104,7 @@ test("a guest adds vacancies by text, by link and by hand, edits, filters and re
     d.setDate(d.getDate() + 1);
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   });
-  const card = win.locator(".jobcard", { hasText: "Label Records" });
+  const card = win.locator(".jobcard:visible", { hasText: "Label Records" });
   await card.locator('input[data-k="deadline"]').fill(tomorrow);
   await expect(card.locator(".jtag.dl")).toHaveText("⏳ дедлайн завтра");
   expect(await cspViolations(page)).toEqual([]);
@@ -122,7 +122,7 @@ test("registration, a cover letter, a revision, a busy retry and copying", async
   await page.locator("#btn-paste").click();
   await page.locator("#a-paste").fill(VACANCY_TEXT);
   await page.locator("#a-paste-go").click();
-  await expect(page.locator("#win-vacancies .jobcard")).toHaveCount(1);
+  await expect(page.locator("#win-vacancies .jobcard:visible")).toHaveCount(1);
   await page.evaluate(() => window.jobdesk.closeWin("vacancies"));
 
   await page.locator('.d-icon[data-open="messenger"]').click();
@@ -173,7 +173,7 @@ test("cloud sync: signing out clears the device, signing in restores it, a secon
   await page.locator("#ev-title").fill("Brand Designer");
   await page.locator("#ev-company").fill("Sync Studio");
   await page.locator("#ev-save").click();
-  await expect(page.locator(".jobcard", { hasText: "Sync Studio" })).toHaveCount(1);
+  await expect(page.locator(".jobcard:visible", { hasText: "Sync Studio" })).toHaveCount(1);
   await page.waitForTimeout(2000); // the cloud write is debounced
 
   await signOut(page);
@@ -181,7 +181,7 @@ test("cloud sync: signing out clears the device, signing in restores it, a secon
 
   await signIn(page, email);
   await openWindow(page, "vacancies");
-  await expect(page.locator(".jobcard", { hasText: "Sync Studio" })).toHaveCount(1);
+  await expect(page.locator(".jobcard:visible", { hasText: "Sync Studio" })).toHaveCount(1);
 
   // a second device
   const other = await browser.newContext();
@@ -190,10 +190,10 @@ test("cloud sync: signing out clears the device, signing in restores it, a secon
   await openApp(page2);
   await signIn(page2, email);
   await openWindow(page2, "vacancies");
-  await expect(page2.locator(".jobcard", { hasText: "Sync Studio" })).toHaveCount(1);
+  await expect(page2.locator(".jobcard:visible", { hasText: "Sync Studio" })).toHaveCount(1);
 
-  await page.locator(".jobcard", { hasText: "Sync Studio" }).locator(".st-sel").selectOption("offer");
-  await expect(page2.locator(".jobcard", { hasText: "Sync Studio" }).locator(".st-sel")).toHaveValue("offer", { timeout: 15_000 });
+  await page.locator(".jobcard:visible", { hasText: "Sync Studio" }).locator(".st-sel").selectOption("offer");
+  await expect(page2.locator(".jobcard:visible", { hasText: "Sync Studio" }).locator(".st-sel")).toHaveValue("offer", { timeout: 15_000 });
   await other.close();
 });
 
@@ -295,7 +295,7 @@ async function addByHand(page, title, company) {
   await page.locator("#ev-title").fill(title);
   await page.locator("#ev-company").fill(company);
   await page.locator("#ev-save").click();
-  await expect(page.locator(".jobcard", { hasText: company })).toHaveCount(1);
+  await expect(page.locator(".jobcard:visible", { hasText: company })).toHaveCount(1);
 }
 const cardsOf = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("jobdesk2000_added_v1") || "[]").map((j) => j.company));
 const waitSynced = (page) => page.waitForFunction(() => !localStorage.getItem("jd2000_sync_dirty"), null, { timeout: 15_000 });
@@ -315,19 +315,19 @@ test("an edit made offline merges with another device's change instead of overwr
   await openApp(phone);
   await signIn(phone, email);
   await openWindow(phone, "vacancies");
-  await expect(phone.locator(".jobcard", { hasText: "Base Co" })).toHaveCount(1);
+  await expect(phone.locator(".jobcard:visible", { hasText: "Base Co" })).toHaveCount(1);
 
   // the laptop goes offline and changes a status; meanwhile the phone adds a vacancy
   await page.context().setOffline(true);
-  await page.locator(".jobcard", { hasText: "Base Co" }).locator(".st-sel").selectOption("interview1");
+  await page.locator(".jobcard:visible", { hasText: "Base Co" }).locator(".st-sel").selectOption("interview1");
   await addByHand(phone, "Illustrator", "Phone Co");
   await waitSynced(phone);
 
   await page.context().setOffline(false);
   await expect.poll(() => cardsOf(page), { timeout: 20_000 }).toEqual(["Base Co", "Phone Co"]);
   await waitSynced(page);
-  await expect(phone.locator(".jobcard", { hasText: "Base Co" }).locator(".st-sel")).toHaveValue("interview1", { timeout: 15_000 });
-  await expect(phone.locator(".jobcard", { hasText: "Phone Co" })).toHaveCount(1);
+  await expect(phone.locator(".jobcard:visible", { hasText: "Base Co" }).locator(".st-sel")).toHaveValue("interview1", { timeout: 15_000 });
+  await expect(phone.locator(".jobcard:visible", { hasText: "Phone Co" })).toHaveCount(1);
   await phoneCtx.close();
 });
 
@@ -343,16 +343,16 @@ test("an edit in a tab closed right away is not lost, and two tabs do not overwr
   const tab2 = await context.newPage();
   await openApp(tab2);
   await openWindow(tab2, "vacancies");
-  await expect(tab2.locator(".jobcard", { hasText: "Tab One" })).toHaveCount(1);
+  await expect(tab2.locator(".jobcard:visible", { hasText: "Tab One" })).toHaveCount(1);
 
   // tab 1 adds a vacancy; tab 2 must see it before its own next save
   await addByHand(tab1, "Motion", "Tab Two Co");
-  await expect(tab2.locator(".jobcard", { hasText: "Tab Two Co" })).toHaveCount(1);
-  await tab2.locator(".jobcard", { hasText: "Tab One" }).locator(".st-sel").selectOption("offer");
+  await expect(tab2.locator(".jobcard:visible", { hasText: "Tab Two Co" })).toHaveCount(1);
+  await tab2.locator(".jobcard:visible", { hasText: "Tab One" }).locator(".st-sel").selectOption("offer");
   await expect.poll(() => cardsOf(tab1)).toEqual(["Tab One", "Tab Two Co"]);
 
   // a change, then the tab closes at once (inside the 800 ms debounce)
-  await tab2.locator(".jobcard", { hasText: "Tab Two Co" }).locator('textarea[data-k="note"]').fill("закрила вкладку одразу");
+  await tab2.locator(".jobcard:visible", { hasText: "Tab Two Co" }).locator('textarea[data-k="note"]').fill("закрила вкладку одразу");
   await tab2.close();
   await tab1.close();
   const again = await context.newPage();
@@ -361,8 +361,8 @@ test("an edit in a tab closed right away is not lost, and two tabs do not overwr
   await waitSynced(again);
   await again.reload();
   await openWindow(again, "vacancies");
-  await expect(again.locator(".jobcard", { hasText: "Tab Two Co" }).locator('textarea[data-k="note"]')).toHaveValue("закрила вкладку одразу");
-  await expect(again.locator(".jobcard", { hasText: "Tab One" }).locator(".st-sel")).toHaveValue("offer");
+  await expect(again.locator(".jobcard:visible", { hasText: "Tab Two Co" }).locator('textarea[data-k="note"]')).toHaveValue("закрила вкладку одразу");
+  await expect(again.locator(".jobcard:visible", { hasText: "Tab One" }).locator(".st-sel")).toHaveValue("offer");
 });
 
 test("a guest saves a copy of the data, loses it and gets it back from the copy; README.TXT explains it all", async ({ page }) => {
@@ -394,11 +394,11 @@ test("a guest saves a copy of the data, loses it and gets it back from the copy;
   await page.evaluate(() => { localStorage.removeItem("jobdesk2000_added_v1"); localStorage.removeItem("jobdesk2000_v1"); });
   await page.reload();
   await openWindow(page, "vacancies");
-  await expect(page.locator(".jobcard")).toHaveCount(0);
+  await expect(page.locator(".jobcard:visible")).toHaveCount(0);
   await page.locator("#backup-file").setInputFiles({ name: "copy.json", mimeType: "application/json", buffer: Buffer.from(copyText) });
   await expect(page.locator("#confirm-text")).toContainText("вакансій: 3");
   await confirmYes(page);
-  await expect(page.locator(".jobcard")).toHaveCount(3);
+  await expect(page.locator(".jobcard:visible")).toHaveCount(3);
   await expect(page.locator("#toast")).toContainText("додано вакансій: 3");
   await expect(page.locator('.jobcard textarea[data-k="note"]').first()).toHaveValue("HR: Олена");
 
@@ -415,15 +415,21 @@ test.describe("installed or offline", () => {
     await seedVacancies(page);
     await openApp(page);
     await page.evaluate(() => navigator.serviceWorker.ready);
-    // the worker caches what this first visit loaded
-    await expect.poll(() => page.evaluate(async () => (await caches.keys()).length && (await (await caches.open((await caches.keys())[0])).keys()).length), { timeout: 15_000 }).toBeGreaterThan(10);
+    // the worker caches every file this first visit loaded (it fetches them again in the background)
+    await expect.poll(() => page.evaluate(async () => {
+      const names = await caches.keys();
+      if (!names.length) return false;
+      const cache = await caches.open(names[0]);
+      const files = performance.getEntriesByType("resource").map((e) => e.name).filter((u) => u.startsWith(location.origin + "/js/") || u.endsWith(".css"));
+      return (await Promise.all(files.map((u) => cache.match(u)))).every(Boolean);
+    }), { timeout: 20_000 }).toBe(true);
 
     await context.setOffline(true);
     await page.reload();
     await page.waitForFunction(() => !!window.jobdesk);
     await expect(page.locator("#tb-offline")).toBeVisible();
     await openWindow(page, "vacancies");
-    await expect(page.locator(".jobcard")).toHaveCount(3);
+    await expect(page.locator(".jobcard:visible")).toHaveCount(3);
     await openWindow(page, "readme");
     await expect(page.locator("#win-readme")).toContainText("README.TXT");
     await context.setOffline(false);

@@ -130,7 +130,7 @@ body:not(.tile-mode) .win[data-app] .win-head, .win-resize{touch-action:none;}
 
 /* ===== GRID / TILE MODE ===== */
 body.tile-mode #desktop{overflow:auto;}
-body.tile-mode #tilewrap .win{position:relative !important; display:flex !important; margin:0; width:auto !important; height:auto !important;
+body.tile-mode #tilewrap .win:not(.minimized){position:relative !important; display:flex !important; margin:0; width:auto !important; height:auto !important;
   left:auto !important; top:auto !important; transform:none !important;}
 /* windows a guest may not open stay out of the grid */
 body.tile-mode #desktop > .win{display:none !important;}
@@ -444,14 +444,14 @@ h3.wh.h16{font-size:1rem;}
   /* windows: full screen, no drag or resize */
   .win{position:fixed !important; left:0 !important; top:0 !important; right:0 !important; bottom:calc(var(--taskbar-h) + var(--safe-b)) !important;
        width:100vw !important; max-width:100vw !important; height:auto !important; max-height:none !important;
-       border-radius:0; border-left:none; border-right:none; box-shadow:none; z-index:500 !important; min-width:0 !important;}
+       border-radius:0; border-left:none; border-right:none; box-shadow:none; z-index:500 !important; min-width:0 !important; min-height:0 !important;}
   #desktop{overflow-y:auto;}
   .win[data-app].focused{z-index:501 !important;} /* the window last opened or picked on the taskbar is the one shown */
   /* big browser text: nothing inside a window may insist on being wider than the phone */
   .fairy-main, #cl-edit, #add-url{min-width:0;}
   .app-head{flex-wrap:wrap;}
   .d-icon{touch-action:auto;}
-  .win.open{display:flex !important;}
+  .win.open:not(.minimized){display:flex !important;}
   .win-body{flex:1 1 auto; min-height:0; overflow-y:auto; padding:.75rem; -webkit-overflow-scrolling:touch;}
   .win-head{cursor:default; padding:calc(.75rem + var(--safe-t)) calc(.625rem + var(--safe-r)) .75rem calc(.625rem + var(--safe-l)); font-size:.9375rem; flex:none;}
   .win-body{padding-left:calc(.75rem + var(--safe-l)); padding-right:calc(.75rem + var(--safe-r));}

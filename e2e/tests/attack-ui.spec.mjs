@@ -79,6 +79,19 @@ test("on a phone the window opened last is the one in front, and the taskbar bri
   await expect.poll(() => topAt(page, cx, cy), { timeout: 3000 }).toBe("vacancies");
 });
 
+test("on a phone the minimise button hides the window and its taskbar button brings it back", async ({ page }, testInfo) => {
+  test.skip(isLayout(testInfo));
+  await phoneLayout(page, testInfo);
+  await seedVacancies(page);
+  await openApp(page);
+  await openWindow(page, "stats");
+  await page.locator('#win-stats [data-min="stats"]').click();
+  await expect(page.locator("#win-stats")).toBeHidden();
+  await expect(page.locator("body")).not.toHaveClass(/win-open/);
+  await page.locator('.tb-task[data-app="stats"]').click();
+  await expect(page.locator("#win-stats")).toBeVisible();
+});
+
 /* ===================== phones: the fairy strip pushes dialogs off the screen ===================== */
 
 test("on a phone a dialog stays on screen while the fairy talks over an open window", async ({ page }, testInfo) => {

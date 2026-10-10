@@ -367,9 +367,9 @@ test.describe("@layout extreme content", () => {
       test.skip(key === "G" && browserName === "webkit", "Safari has no default font size setting; its page zoom is test H");
       // 200 % text on a phone narrower than 400 px, or a zoom that leaves less than 320 px, is a layout narrower
       // than the 320 px WCAG reflow asks for (and than any phone sold today): left out on purpose
-      const width = page.viewportSize().width;
+      const { width, height } = page.viewportSize();
       test.skip(key === "G" && width < 400, "200 % text on a phone this narrow is a layout of under 200 px");
-      test.skip(key === "H" && width / 2 < 320, "a 200 % zoom here leaves less than the 320 px WCAG reflow asks for");
+      test.skip(key === "H" && (width / 2 < 320 || height / 2 < 256), "a 200 % zoom here leaves less than WCAG reflow asks for (320 px wide, 256 px high)");
       const tag = key.toLowerCase();
       await prepare(page);
       await seedSignedIn(page);
