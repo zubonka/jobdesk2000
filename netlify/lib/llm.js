@@ -7,10 +7,20 @@ const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_RESERVE = 8000;
 const MIN_TRY = 2500;
 
-function fetchTimeout(url, opts, ms) {
+// One request whose time limit covers the answer's body too: a body that stalls after the headers ends the try like
+// a slow answer (the throw counts as a busy engine in tryModel). A body that is not JSON reads as {}.
+async function fetchJSON(url, opts, ms) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
-  return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(timer));
+  try {
+    const res = await fetch(url, { ...opts, signal: ctrl.signal });
+    const raw = await res.text();
+    let data = {};
+    try { data = JSON.parse(raw) ?? {}; } catch (e) { /* an error page */ }
+    return { res, data };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // Model lists can be changed without a code deploy: GEMINI_MODELS_FAST, GEMINI_MODELS_WRITE, GROQ_MODELS (comma-separated).
@@ -57,7 +67,7 @@ async function askGemini(model, opts, key, ms) {
   const thinking = thinkingFor(model);
   if (thinking) config.thinkingConfig = thinking;
   if (opts.schema) Object.assign(config, { responseMimeType: "application/json", responseSchema: opts.schema });
-  const res = await fetchTimeout(GEMINI_URL + model + ":generateContent", {
+  const { res, data } = await fetchJSON(GEMINI_URL + model + ":generateContent", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": key },
     body: JSON.stringify({
@@ -66,7 +76,6 @@ async function askGemini(model, opts, key, ms) {
       generationConfig: config,
     }),
   }, ms);
-  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const err = data.error || {};
     const msg = err.message || "";
@@ -88,7 +97,7 @@ async function askGroq(model, opts, key, ms) {
   if (opts.system) messages.push({ role: "system", content: opts.system });
   messages.push({ role: "user", content: opts.user + (opts.schema ? "\n\nПоверни ВИКЛЮЧНО валідний JSON-обʼєкт." : "") });
   const reasoning = isGroqReasoning(model);
-  const res = await fetchTimeout(GROQ_URL, {
+  const { res, data } = await fetchJSON(GROQ_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: "Bearer " + key },
     body: JSON.stringify({
@@ -100,7 +109,6 @@ async function askGroq(model, opts, key, ms) {
       ...(reasoning ? { reasoning_effort: "low", include_reasoning: false } : {}),
     }),
   }, ms);
-  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     console.log(`groq ${model} HTTP ${res.status}: ${((data.error && data.error.message) || "").slice(0, 200)}`);
     return { failure: isBusyStatus(res.status) ? "busy" : "failed" };
@@ -161,4 +169,4 @@ function parseJSONLoose(text) {
   return (braces && tryParse(braces[0])) ?? null;
 }
 
-module.exports = { fetchTimeout, MODELS, thinkingFor, generate, AIError, parseJSONLoose };
+module.exports = { MODELS, thinkingFor, generate, AIError, parseJSONLoose };

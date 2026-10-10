@@ -66,6 +66,25 @@ test("when every Gemini model fails, Groq answers", async () => {
   assert.deepEqual(calls.map((c) => c.engine + ":" + c.model), [...MODELS.write.map((m) => "gemini:" + m), "groq:openai/gpt-oss-120b"]);
 });
 
+test("an answer whose body stalls after the headers ends that try in time, and Groq answers", async () => {
+  stubFetch({ groq: () => groqReply("from groq") });
+  const stubbed = global.fetch;
+  global.fetch = async (url, opts) => {
+    if (!String(url).includes("generativelanguage")) return stubbed(url, opts);
+    const body = new ReadableStream({
+      start(c) {
+        c.enqueue(new TextEncoder().encode('{"candidates": ['));
+        opts.signal.addEventListener("abort", () => c.error(new DOMException("aborted", "AbortError")));
+      },
+    });
+    return new Response(body, { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const started = Date.now();
+  const r = await ask({ deadline: Date.now() + 12000, perTry: 1000 });
+  assert.equal(r.text, "from groq");
+  assert.ok(Date.now() - started < 6000, "the stalled bodies were cut off at their try's limit");
+});
+
 test("Gemini request: key in a header, system instruction, thinking config, sampling settings", async () => {
   const calls = stubFetch({ gemini: () => geminiReply("ok") });
   await ask({ maxTokens: 333, temperature: 0.9 });
