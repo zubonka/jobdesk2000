@@ -134,6 +134,22 @@ test("cleanLetter keeps ordinary words and drops fences, intros, bold and traili
   assert.match(bodyOf(await write()).text, /^Ось тут я хочу/, "an intro line must end with a colon and a line break to be dropped");
 });
 
+test("a numbered bold list or a Ref: line inside the letter is kept, notes after the sign-off still go", async () => {
+  writes("Шановна командо Acme!\n\nХочу долучитися. Мої досягнення:\n\n1. **Дизайн-системи**: шість років.\n2. **Брендинг**: лейбли.\n\n" +
+    "Буду рада поспілкуватися.\n\nЗ повагою,\nОлена\nLength: 160 words");
+  assert.equal(bodyOf(await write()).text,
+    "Шановна командо Acme!\n\nХочу долучитися. Мої досягнення:\n\n1. Дизайн-системи: шість років.\n2. Брендинг: лейбли.\n\nБуду рада поспілкуватися.\n\nЗ повагою,\nОлена");
+
+  const formal = "Olena Koval\nKyiv\n\nRef: Application for the Product Designer position\n\nDear Hiring Manager,\n\nI am writing to apply for the role.\n\nKind regards, Olena";
+  writes(formal + "\nNotes: formal tone");
+  assert.equal(bodyOf(await write({ lang: "English" })).text, formal);
+});
+
+test("a letter without a sign-off loses only the notes at its very end", async () => {
+  writes("Шановна командо! Маю шість років досвіду в дизайні й люблю складні задачі.\n1. **Length**: 120 words\n\nOutput: plain text", "MAX_TOKENS");
+  assert.match(bodyOf(await write()).text, /^Шановна командо! Маю шість років досвіду в дизайні й люблю складні задачі\.\n\nЗ повагою,\nОлена$/);
+});
+
 test("a cut that would leave almost nothing keeps the raw text instead", async () => {
   writes("Rules: write warmly\nШановна командо! Я дуже хочу працювати у вас дизайнеркою.");
   assert.equal(bodyOf(await write()).text, "Rules: write warmly\nШановна командо! Я дуже хочу працювати у вас дизайнеркою.");

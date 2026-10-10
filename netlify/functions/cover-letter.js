@@ -32,11 +32,23 @@ const CHATTER_LINE = /(passive\/noun|feminine forms?|Ensure correct|ONLY text|^\
 const INTRO_LINE = /^\s*(ось|here is|here's)(?![\p{L}\p{N}_])[^\n]{0,80}:\s*\n/iu;
 const SIGN_OFF = /(З повагою|Щиро|З найкращими побажаннями|Kind regards|Best regards|Sincerely|Warm regards|Regards)/i;
 
+// Where the letter ends and a tail of notes begins. Notes come after the letter, so a line inside it that only looks
+// like one (a numbered bold list, a "Ref:" line under the address) is kept: after the last sign-off the first note
+// line cuts, and a letter without a sign-off (cut by the token limit) loses only the run of notes at its very end.
+function tailStart(lines) {
+  let signOff = -1;
+  lines.forEach((line, i) => { if (SIGN_OFF.test(line) && !CHATTER_LINE.test(line)) signOff = i; });
+  if (signOff >= 0) return lines.findIndex((line, i) => i > signOff && CHATTER_LINE.test(line));
+  let end = lines.length;
+  while (end > 0 && (CHATTER_LINE.test(lines[end - 1]) || !lines[end - 1].trim())) end--;
+  return end === lines.length ? -1 : end;
+}
+
 // Removes what a chatty model adds around the letter: markdown, our tags, an intro and a tail of notes.
 function cleanLetter(raw) {
   const t = raw.replace(/```[a-z]*\n?/gi, "").replace(/```/g, "").replace(/<\/?(letter|cv|vacancy|request)>/gi, "").replace(INTRO_LINE, "");
   const lines = t.split("\n");
-  const end = lines.findIndex((line) => CHATTER_LINE.test(line));
+  const end = tailStart(lines);
   let out = (end < 0 ? lines : lines.slice(0, end)).join("\n").trim();
   // a cut that leaves almost nothing was wrong: the raw text is better than no letter
   if (out.length < 40) out = t.trim();
