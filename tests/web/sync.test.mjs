@@ -662,6 +662,8 @@ test("an unsent edit put aside comes back even when the cloud's older value coul
   back.deliver();
   await back.sync.flushSync();
   assert.equal(cloud.data("uA")[CV], v1);
+  assert.deepEqual(companies(cloud.data("uA")), ["A Co"], "the vacancies that came back are not read as removed");
+  assert.equal(progress(cloud.data("uA"))["A Co|Dev"].note, "a");
   assert.equal(store.getItem("jd2000_stash"), null);
 });
 
@@ -730,4 +732,98 @@ test("a note put aside that does not fit back in waits with its vacancy, and the
   await back.sync.flushSync();
   assert.deepEqual(companies(cloud.data("uA")), ["A Co", "A Two"]);
   assert.equal(progress(cloud.data("uA"))["A Co|Dev"].note, "x".repeat(3000));
+});
+
+/* ----- changes put aside, on a storage too full for the cloud's copy ----- */
+
+const STASH_LIST = [job("A Co"), job("Big1"), job("Big2")];
+const BIG = "опис ".repeat(400);
+const pairs = (aNote, aStatus, big1 = BIG) => data(STASH_LIST, { "A Co|Dev": fresh(aNote, aStatus), "Big1|Dev": fresh(big1), "Big2|Dev": fresh(BIG) }, "uA");
+
+async function signInA(store, name = "pageA") {
+  const page = await device(name, { store });
+  page.users.setUser({ name: "Андрій", email: "a@example.com", gender: "m", uid: "uA" });
+  await page.sync.startSync("uA");
+  page.deliver();
+  await page.sync.flushSync();
+  return page;
+}
+async function bSignsInOver(page, store) {
+  page.users.setUser({ name: "Богдана", email: "b@example.com", gender: "f", uid: "uB" });
+  page.sync.stopSync();
+  const b = await device("pageB", { store });
+  await b.sync.startSync("uB");
+  b.deliver();
+  await b.sync.flushSync();
+  b.sync.stopSync();
+  b.sync.forgetAccountData();
+  b.users.clearUser();
+}
+const stashed = (kept, base) => ({ jd2000_stash: JSON.stringify({ uA: { data: kept, base: fingerprint(base) } }) });
+
+test("a CV put aside that waited on a full storage still wins after another account signed in over it", async () => {
+  const CV = "jobdesk2000_cv_v1", v0 = "CV v0 ".repeat(3000), v1 = "CV v1 ".repeat(3000);
+  const startA = { ...data([job("A Co")], { "A Co|Dev": fresh("a") }, "uA"), [CV]: v0 };
+  startCloud(startA, "uA");
+  startCloud(data([job("B Co")], { "B Co|Dev": fresh() }, "uB"), "uB");
+  const store = new QuotaStorage();
+  for (const [key, value] of Object.entries(stashed({ ...startA, [CV]: v1 }, startA))) store.setItem(key, value);
+  store.quota = store.used() + 3000; // the vacancies fit, a second CV does not
+  const page = await signInA(store);
+  await bSignsInOver(page, store);
+  store.quota = Infinity;
+  await signInA(store, "pageA2");
+  assert.equal(cloud.data("uA")[CV], v1);
+  assert.ok(!JSON.stringify(cloud.data("uB")).includes("CV v1"));
+});
+
+test("vacancies put aside that waited on a full storage keep their history after another account signed in over them", async () => {
+  startCloud(pairs("a", "Оффер"), "uA"); // the phone moved A Co to an offer after the changes were put aside
+  startCloud(data([job("B Co")], { "B Co|Dev": fresh() }, "uB"), "uB");
+  const store = new QuotaStorage();
+  for (const [key, value] of Object.entries(stashed(pairs("edited offline", "Подався", BIG + "x"), pairs("a", "Подався")))) store.setItem(key, value);
+  store.quota = store.used() + 1200; // neither the cloud's list nor the edited one fits
+  const page = await signInA(store);
+  await bSignsInOver(page, store);
+  store.quota = Infinity;
+  await signInA(store, "pageA2");
+  const p = progress(cloud.data("uA"));
+  assert.deepEqual([p["A Co|Dev"].status, p["A Co|Dev"].note, p["Big1|Dev"].note], ["Оффер", "edited offline", BIG + "x"]);
+});
+
+test("changes put aside wait for a cloud copy that did not fit here, instead of being merged against part of it", async () => {
+  const CV = "jobdesk2000_cv_v1", v0 = "CV v0 long ".repeat(2000), v1 = "CV v1 ".repeat(2000);
+  const startA = { ...data([job("A Co")], { "A Co|Dev": fresh("a") }, "uA"), [CV]: v0 };
+  startCloud(startA, "uA");
+  const store = new QuotaStorage();
+  for (const [key, value] of Object.entries(stashed({ ...startA, [CV]: v1 }, startA))) store.setItem(key, value);
+  store.quota = store.used() + 15000; // the shorter CV put aside would fit, the cloud's longer one does not
+  const page = await signInA(store);
+  page.sync.stopSync();
+  store.quota = Infinity;
+  await signInA(store, "pageA2");
+  assert.equal(cloud.data("uA")[CV], v1, "a shorter CV put aside");
+
+  startCloud(pairs("a", "Оффер"), "uA");
+  const store2 = new QuotaStorage();
+  for (const [key, value] of Object.entries(stashed(pairs("edited offline", "Подався"), pairs("a", "Подався")))) store2.setItem(key, value);
+  store2.quota = store2.used() + 1500; // the cloud's list with two long notes does not fit next to the stash
+  const page2 = await signInA(store2, "pageC");
+  page2.sync.stopSync();
+  store2.quota = Infinity;
+  await signInA(store2, "pageC2");
+  const a = progress(cloud.data("uA"))["A Co|Dev"];
+  assert.deepEqual(companies(cloud.data("uA")), ["A Co", "Big1", "Big2"]);
+  assert.deepEqual([a.status, a.note], ["Оффер", "edited offline"], "vacancies whose cloud list did not fit");
+});
+
+test("a cloud wallpaper this device can never hold does not keep the other changes put aside from coming back", async () => {
+  const startA = data([job("A Co")], { "A Co|Dev": fresh("a") }, "uA");
+  startCloud({ ...startA, [WALL]: picture("P", 300) }, "uA"); // A's phone picked a big wallpaper meanwhile
+  const store = new QuotaStorage();
+  for (const [key, value] of Object.entries(stashed(data([job("A Co")], { "A Co|Dev": fresh("edited offline") }, "uA"), startA))) store.setItem(key, value);
+  store.quota = store.used() + 20000; // room for anything but the picture
+  await signInA(store);
+  assert.equal(progress(cloud.data("uA"))["A Co|Dev"].note, "edited offline");
+  assert.equal(cloud.data("uA")[WALL], picture("P", 300));
 });

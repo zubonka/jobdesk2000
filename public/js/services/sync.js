@@ -15,7 +15,7 @@ import { KEYS, SYNC_PREFIX, getRaw, getObject, setRaw, setJSON, remove, silently
 import { loadFirebase, firebaseNow } from "./firebase.js";
 import { emit } from "../core/events.js";
 import { currentUser, setUser, rememberGender } from "../data/user.js";
-import { merge, fingerprint, sameData, hash } from "./sync-merge.js";
+import { merge, fingerprint, sameData, hash, vacancies, wholeOf } from "./sync-merge.js";
 
 const PUSH_DELAY_MS = 800;
 const FLUSH_TIMEOUT_MS = 4000;
@@ -300,7 +300,8 @@ function firstSync(remote, version) {
   const owner = getRaw(KEYS.owner) || (loadedUid === uid && getRaw(KEYS.joining) !== uid ? uid : "");
   const local = localData();
   let stored = true, kind = "cloud"; // whether every value fitted, and which way the data came together
-  const take = (next) => { stored = replaceLocal(next) && stored; };
+  let taken = null; // a copy that did not all fit here
+  const take = (next) => { if (!replaceLocal(next)) { stored = false; taken = next; } };
   if (owner && owner !== uid) {
     // This device held someone else's data. What of it never reached that account's cloud copy is put aside here,
     // never uploaded into this account, and merged back when that account signs in on this device again.
@@ -331,7 +332,10 @@ function firstSync(remote, version) {
   setRaw(KEYS.owner, uid);
   remove(KEYS.joining);
   const here = localData(); // before the stash comes back: what of it did not fit must not count as common history
-  stored = takeBackStash() && stored;
+  // the keys whose cloud value did not fit here (the list and its progress as one): the stash waits with its own for them
+  const missed = (key) => taken !== null && key !== KEYS.user
+    && (VACANCY_KEYS.includes(key) ? VACANCY_KEYS.some((k) => here[k] !== taken[k]) : here[key] !== taken[key]);
+  stored = takeBackStash(missed) && stored;
   if (stored) {
     // An empty cloud copy is a new account: an empty base, so what any device adds from now on counts as an
     // addition (without a base the cloud would win and could wipe the vacancies a guest brought in).
@@ -361,9 +365,9 @@ function stashOf(local) {
 function putStash(owner, kept) {
   const all = getObject(KEYS.stash), old = all[owner];
   if (old && typeof old === "object" && old.data) {
-    // changes already put aside for this account (a take-back that did not fit) are kept, merged with the new ones
+    // changes already put aside for this account (a take-back that did not fit) are kept together with the new ones
     const oldBase = old.base && old.base.keys && old.base.jobs ? old.base : NO_HISTORY;
-    kept = { data: merge(oldBase, kept.data, old.data), base: kept.base };
+    kept = combineStashes({ data: old.data, base: oldBase }, kept);
   }
   if (setJSON(KEYS.stash, { ...all, [owner]: kept })) return true;
   const keys = { ...kept.base.keys }, data = {};
@@ -374,24 +378,55 @@ function putStash(owner, kept) {
   return setJSON(KEYS.stash, { ...all, [owner]: { data, base: { ...kept.base, keys } } });
 }
 
+// Two copies of one account put aside: an older one that did not all fit back in, and the device's, put aside now.
+// Each value keeps the history of the side it comes from, or a later merge would read it wrong: the device's where the
+// device changed it since its own history, the older copy's otherwise. Vacancy by vacancy for the list and its progress.
+function combineStashes(older, device) {
+  const data = {}, keys = {}, jobs = {};
+  for (const key of new Set([...Object.keys(device.data), ...Object.keys(older.data), ...Object.keys(older.base.keys)])) {
+    if (VACANCY_KEYS.includes(key)) continue;
+    const fromOlder = hash(device.data[key]) === (device.base.keys[key] || "-") && (key in older.data || older.base.keys[key] !== undefined);
+    const side = fromOlder ? older : device;
+    if (side.data[key] !== undefined) data[key] = side.data[key];
+    if (side.base.keys[key] !== undefined) keys[key] = side.base.keys[key];
+  }
+  if ([device.data, older.data].some((d) => d[KEYS.jobs] !== undefined || d[KEYS.progress] !== undefined)) {
+    const mine = vacancies(device.data), theirs = vacancies(older.data), printed = fingerprint(device.data).jobs;
+    const list = [], progress = {};
+    for (const id of new Set([...theirs.keys(), ...mine.keys(), ...Object.keys(device.base.jobs), ...Object.keys(older.base.jobs)])) {
+      const fromOlder = wholeOf(printed[id]) === wholeOf(device.base.jobs[id]) && (theirs.has(id) || older.base.jobs[id] !== undefined);
+      const v = (fromOlder ? theirs : mine).get(id), entry = (fromOlder ? older : device).base.jobs[id];
+      if (v) { list.push(v.job); if (v.progress !== undefined) progress[id] = v.progress; }
+      if (entry !== undefined) jobs[id] = entry;
+    }
+    data[KEYS.jobs] = JSON.stringify(list);
+    data[KEYS.progress] = JSON.stringify(progress);
+  }
+  return { data, base: { keys, jobs } };
+}
+
 // This account's changes put aside while another account used the device go on top of what is here now. False when
-// they did not fit: then they stay put aside for the next time.
-function takeBackStash() {
+// they did not all fit, or wait on a key whose cloud value did not fit here (`missed`): the rest stays put aside.
+function takeBackStash(missed = () => false) {
   const stash = getObject(KEYS.stash), kept = stash[uid];
   if (!kept || typeof kept !== "object" || !kept.data) return true;
   const base = kept.base && kept.base.keys && kept.base.jobs ? kept.base : NO_HISTORY;
   const now = localData();
-  const merged = merge(base, kept.data, now);
+  // a missed key is left as the device holds it: merged against the partial copy, the stash would read the cloud's
+  // value as removed or changed
+  const without = (d) => Object.fromEntries(Object.entries(d).filter(([key]) => !missed(key)));
+  const merged = { ...merge(base, without(kept.data), without(now)), ...Object.fromEntries(Object.entries(now).filter(([key]) => missed(key))) };
   setDirty(true);
-  if (!sameData(merged, now) && !replaceLocal(merged)) {
+  const fits = sameData(merged, now) || replaceLocal(merged);
+  if (!fits || Object.keys(kept.data).some(missed)) {
     // What did fit is here now and goes up with the next push. Only the rest stays put aside, as it was (its value and
     // its history), so a later merge can neither bring back what was delivered over newer edits nor lose what was not.
     // The vacancy list and its progress count as one.
     const here = localData();
-    const vacanciesLanded = VACANCY_KEYS.every((key) => here[key] === merged[key]);
+    const vacanciesLanded = !missed(KEYS.jobs) && VACANCY_KEYS.every((key) => here[key] === merged[key]);
     const data = {}, keys = {};
     for (const [key, value] of Object.entries(kept.data)) {
-      if (key === KEYS.user || (VACANCY_KEYS.includes(key) ? vacanciesLanded : here[key] === merged[key])) continue;
+      if (key === KEYS.user || (VACANCY_KEYS.includes(key) ? vacanciesLanded : !missed(key) && here[key] === merged[key])) continue;
       data[key] = value;
       if (base.keys[key] !== undefined) keys[key] = base.keys[key];
     }

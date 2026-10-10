@@ -37,7 +37,7 @@ const parse = (text, fallback) => { try { return JSON.parse(text) ?? fallback; }
 const idOf = (job) => job.company + "|" + job.title;
 
 // { <vacancy id>: { job, progress } } in list order
-function vacancies(data) {
+export function vacancies(data) {
   const list = parse(data[JOBS], []);
   const progress = parse(data[PROGRESS], {}) || {};
   const out = new Map();
@@ -69,7 +69,7 @@ export function fingerprint(data) {
 }
 
 // a base entry is { v, f } now, or the bare whole-vacancy hash written by older versions
-const wholeOf = (entry) => (entry && typeof entry === "object" ? entry.v : entry) || "-";
+export const wholeOf = (entry) => (entry && typeof entry === "object" ? entry.v : entry) || "-";
 const fieldsOf = (entry) => (entry && typeof entry === "object" ? entry.f : null);
 
 // One value seen on both sides, with the base hash. Only one side changed it: that side wins (a removal is a
