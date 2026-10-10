@@ -119,6 +119,7 @@ export function reloadIcons() {
 export function initIcons() {
   icons().forEach(makeDraggable);
   layoutIcons();
+  byId("icons").classList.add("placed");
   window.addEventListener("resize", layoutIcons);
   on("windows", syncActive);
 }

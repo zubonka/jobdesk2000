@@ -72,6 +72,8 @@ input, textarea{user-select:text; -webkit-user-select:text;}
 #icons{position:absolute; top:.875rem; left:.75rem; z-index:1;}
 .d-icon{position:absolute; width:6rem; text-align:center; cursor:grab; padding:.375rem .1875rem; border-radius:.5rem; transition:background .1s; user-select:none;}
 .d-icon.dragging{cursor:grabbing; opacity:.85; z-index:50;}
+/* until ui/icons.js has put them on their cells, or the first frame shows them piled up in the corner */
+#icons:not(.placed) .d-icon{visibility:hidden;}
 /* a finger on a tablet drags the icon instead of panning the page (phones do not drag icons, see the mobile block) */
 .d-icon{touch-action:none;}
 .d-icon:hover{background:rgba(255,255,255,.08);}
