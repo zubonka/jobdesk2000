@@ -262,7 +262,8 @@ formats are shared with the original single-file app and with existing cloud cop
   Sweeping it away on that tab's sign-out was tried and dropped: the tab cannot tell it from a guest's or another
   account's data, which must stay.
 - A full storage: a cloud copy that does not fit is never counted as common history, and the vacancy list and its
-  progress go in together or not at all, so a vacancy never arrives without its status, dates and note.
+  progress go in together or not at all, so a vacancy never arrives without its status, dates and note. Changes
+  put aside wait, with their own history, for whatever of the cloud copy did not fit.
 - `tests/web/jobs.test.mjs` pins these formats against the original app. `tests/web/sync.test.mjs` replays the
   sync between simulated devices and tabs over a fake Firestore (`fake-firebase.mjs`, loaded through
   `sync-hooks.mjs`), delivering snapshots in exactly the orders that once lost data.
@@ -340,7 +341,8 @@ Two Netlify functions (Lambda-style handlers, CommonJS). The shared code in `net
   function's time budget (25 s for analysis, 45 s for letters), keeping 8 s for Groq, then the Groq models.
   JSON answers use Gemini's `responseSchema` (Groq: `json_object`). Thinking is kept minimal because it is slow
   and eats `maxOutputTokens`: `thinkingBudget: 0` on 2.5 Flash, `thinkingLevel: "minimal"` on 3.x Flash-Lite,
-  `"low"` on other 3.x models. A letter cut by the token limit is trimmed to its last full sentence and signed.
+  `"low"` on other 3.x models. A letter cut by the token limit is trimmed to its last full sentence and signed;
+  when its closing came through, only a name or a P.S. cut short is finished.
 - **Errors and limits.** A busy engine (429, 5xx, overload, timeout) answers `{ error, retry: true }` so the
   client can retry. Per warm instance: 40 vacancy analyses per 10 min per IP, 20 profile analyses and
   40 letters per hour per user. CORS allows only the origins listed above; any other origin gets 403.
