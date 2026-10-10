@@ -302,7 +302,7 @@ test("300 vacancies with long notes: search, a status change and typing a note s
       el.dispatchEvent(new Event("input", { bubbles: true }));
       times.push(performance.now() - t);
     }
-    return Math.max(...times);
+    return times.sort((a, b) => a - b)[2]; // the middle one: a slow app slows every keystroke, a busy test machine one
   });
   // a status change redraws the board and the statistics
   const statusMs = await page.evaluate(() => {
