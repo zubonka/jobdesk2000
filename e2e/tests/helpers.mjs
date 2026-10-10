@@ -126,6 +126,10 @@ export function layoutProblems(page, { touch = false } = {}) {
       }
       return box;
     };
+    const contentBox = (el) => {
+      const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+      return { right: r.left + parseFloat(s.borderLeftWidth) + el.clientWidth - parseFloat(s.paddingRight) };
+    };
     // a desktop that scrolls (big text on a phone) shows its icons when scrolled to them
     const desk = document.getElementById("desktop");
     const deskScrolls = desk && desk.scrollHeight > desk.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(desk).overflowY);
@@ -151,7 +155,8 @@ export function layoutProblems(page, { touch = false } = {}) {
         if (!visible(el) || el.closest(".sr-only")) continue;
         const r = el.getBoundingClientRect();
         const scroller = el.closest(".win-body, .sm-body, .chat-log, .chat-letter, select");
-        const clip = scroller && scroller !== el ? scroller.getBoundingClientRect() : boxRect;
+        // inside a scrolling body, content stays within its padding: a button pushed into it looks cut by the edge
+        const clip = scroller && scroller !== el ? contentBox(scroller) : boxRect;
         if (r.right > clip.right + 2 && !el.closest(".ti")) problems.push(`${name(el)} sticks out of ${name(box)} by ${Math.round(r.right - clip.right)}px`);
         const hasText = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
         if (hasText) {
