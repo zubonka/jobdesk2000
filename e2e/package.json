@@ -8,6 +8,7 @@
     "test:layout": "playwright test --grep @layout"
   },
   "devDependencies": {
-    "@playwright/test": "1.63.0"
+    "@playwright/test": "1.63.0",
+    "axe-core": "4.10.3"
   }
 }

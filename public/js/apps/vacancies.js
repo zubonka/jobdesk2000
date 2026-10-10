@@ -79,7 +79,7 @@ function resetFilters() {
 
 function cardHead(job, folded) {
   return html`<div class="jhead">
-    <select class="js-f jprio-sel" data-id="${job.id}" data-k="prio">${PRIORITIES.map((prio) => html`<option${selected(prio === job.prio)}>${prio}</option>`)}</select>
+    <select class="js-f jprio-sel" data-id="${job.id}" data-k="prio" aria-label="Пріоритет">${PRIORITIES.map((prio) => html`<option${selected(prio === job.prio)}>${prio}</option>`)}</select>
     <span class="jtools">
       <button type="button" class="ui jcol" data-id="${job.id}" title="${folded ? "Розгорнути" : "Згорнути"}">${folded ? "▸" : "▾"}</button>
       <button type="button" class="ui jedit" data-id="${job.id}" title="Редагувати">✏️</button>
@@ -88,16 +88,19 @@ function cardHead(job, folded) {
   </div>`;
 }
 
+let fieldIds = 0; // ties each card's labels to its fields (a vacancy id has spaces, so it cannot be an element id)
+
 function cardDetails(job) {
+  const id = "jf" + ++fieldIds;
   return html`
-    <div class="jrow"><label>📅 Дата подачі</label><input type="date" class="js-f" data-id="${job.id}" data-k="date" value="${job.date}"></div>
-    <div class="jrow"><label>⏳ Дедлайн</label><input type="date" class="js-f" data-id="${job.id}" data-k="deadline" value="${job.deadline}"></div>
-    <div class="jrow"><label>📝 Нотатки</label><textarea class="js-f" data-id="${job.id}" data-k="note" rows="1" placeholder="контакт, деталі...">${job.note}</textarea></div>`;
+    <div class="jrow"><label for="${id}-date">📅 Дата подачі</label><input type="date" id="${id}-date" class="js-f" data-id="${job.id}" data-k="date" value="${job.date}"></div>
+    <div class="jrow"><label for="${id}-deadline">⏳ Дедлайн</label><input type="date" id="${id}-deadline" class="js-f" data-id="${job.id}" data-k="deadline" value="${job.deadline}"></div>
+    <div class="jrow"><label for="${id}-note">📝 Нотатки</label><textarea id="${id}-note" class="js-f" data-id="${job.id}" data-k="note" rows="1" placeholder="контакт, деталі...">${job.note}</textarea></div>`;
 }
 
 function cardFoot(job, g) {
   return html`<div class="jfoot">
-    <select class="st-sel js-f" data-id="${job.id}" data-k="status">${STATUS_KEYS.map((key) => html`<option value="${key}"${selected(key === job.status)}>${statusLabel(key, g)}</option>`)}</select>
+    <select class="st-sel js-f" data-id="${job.id}" data-k="status" aria-label="Статус">${STATUS_KEYS.map((key) => html`<option value="${key}"${selected(key === job.status)}>${statusLabel(key, g)}</option>`)}</select>
     <a class="jlink" href="${safeUrl(job.url)}" target="_blank" rel="noopener">${LINK_LABELS[job.status] || "Перейти ↗"}</a>
   </div>`;
 }

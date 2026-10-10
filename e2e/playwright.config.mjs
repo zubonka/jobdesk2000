@@ -1,6 +1,7 @@
 // Playwright config. Two kinds of tests:
 // - flows.spec.mjs: user journeys against the dev server with the AI mock and the Firebase emulators,
-//   on a desktop browser (Chromium) and on an iPhone 11 (WebKit, the engine of Safari on iOS);
+//   on a desktop browser (Chromium) and on an iPhone 11 (WebKit, the engine of Safari on iOS), together with
+//   the accessibility checks (a11y.spec.mjs) and the edge-case specs (attack-*.spec.mjs);
 // - layout.spec.mjs (@layout): every screen of the app on a matrix of phones, tablets and monitors, checked for
 //   horizontal scrolling, clipped or overflowing content, unreadable text, small touch targets and overlaps.
 import { defineConfig, devices } from "@playwright/test";
@@ -67,9 +68,10 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [
-    // flows.spec.mjs plus the edge-case specs (attack-*.spec.mjs), which pick their own browser per test
-    { name: "flows-desktop", testMatch: /(flows|attack-(?!layout)[a-z]+)\.spec/, use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
-    { name: "flows-iphone", testMatch: /(flows|attack-(?!layout)[a-z]+)\.spec/, use: { ...devices["iPhone 11"] } },
+    // flows.spec.mjs, the accessibility checks (a11y.spec.mjs) and the edge-case specs (attack-*.spec.mjs),
+    // which pick their own browser per test
+    { name: "flows-desktop", testMatch: /(flows|a11y|attack-(?!layout)[a-z]+)\.spec/, use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
+    { name: "flows-iphone", testMatch: /(flows|a11y|attack-(?!layout)[a-z]+)\.spec/, use: { ...devices["iPhone 11"] } },
     // layout.spec.mjs on every device; the slower extreme-content spec (attack-layout.spec.mjs) on a few that
     // stand for the rest: a small and a big phone, a phone held sideways, a tablet, a laptop and a 4K monitor
     ...LAYOUT_DEVICES.map((d) => ({
