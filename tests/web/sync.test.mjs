@@ -207,3 +207,26 @@ test("another account signing in puts aside the previous account's unsent change
   assert.deepEqual(companies(cloud.data("uA")).sort(), ["A Synced Co", "A Unsent Co"]);
   assert.equal(store.getItem("jd2000_stash"), null);
 });
+
+test("a cloud copy that a full storage could not take is not counted as common history", async () => {
+  const start = data([job("Acme"), job("Beta")], { "Acme|Dev": fresh(), "Beta|Dev": fresh() });
+  startCloud(start);
+  const laptop = await synced("laptop", start), phone = await synced("phone", start);
+  phone.jobs.setJobField("Acme|Dev", "status", "offer");
+  phone.jobs.setJobField("Acme|Dev", "note", "offer letter, answer by Friday");
+  phone.jobs.addJob({ company: "Gamma", title: "Dev" });
+  phone.jobs.setJobField("Gamma|Dev", "status", "applied");
+  await phone.sync.flushSync();
+
+  const setItem = laptop.store.setItem.bind(laptop.store);
+  laptop.store.setItem = (key, value) => { if (key === PROGRESS) throw new DOMException("full", "QuotaExceededError"); setItem(key, value); };
+  laptop.deliver(); // the bigger progress map does not fit
+  laptop.store.setItem = setItem; // space is freed later
+  laptop.jobs.setJobField("Beta|Dev", "note", "an unrelated edit on the laptop");
+  await laptop.sync.flushSync();
+  const p = progress(cloud.data("u1"));
+  assert.equal(p["Acme|Dev"].status, "Оффер");
+  assert.equal(p["Acme|Dev"].note, "offer letter, answer by Friday");
+  assert.match(p["Gamma|Dev"].status, /^Подал/);
+  assert.equal(p["Beta|Dev"].note, "an unrelated edit on the laptop");
+});

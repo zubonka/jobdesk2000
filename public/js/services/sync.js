@@ -115,21 +115,24 @@ function adoptUser(record) {
   }
 }
 
-// Makes the local synced keys equal to `next`, without writing anything back to the cloud.
+// Makes the local synced keys equal to `next`, without writing anything back to the cloud. False when a value did
+// not fit (a full storage): then the device does not hold `next`, and the caller must not count it as common history.
 function replaceLocal(next) {
   const local = localData();
   const keepWall = getRaw(KEYS.wallLocal) === "1" && next[KEYS.wallpaper] === undefined;
+  let stored = true;
   silently(() => {
     for (const key of Object.keys(local)) {
       if (key === KEYS.user || (key === KEYS.wallpaper && keepWall)) continue;
       if (!(key in next)) remove(key);
     }
     for (const [key, value] of Object.entries(next)) {
-      if (key !== KEYS.user && key.startsWith(SYNC_PREFIX) && typeof value === "string" && local[key] !== value) setRaw(key, value);
+      if (key !== KEYS.user && key.startsWith(SYNC_PREFIX) && typeof value === "string" && local[key] !== value) stored = setRaw(key, value) && stored;
     }
     adoptUser(next[KEYS.user]);
     emit("state"); // stores reload; what they write while reloading is not a user edit
   });
+  return stored;
 }
 
 function clearUserData() {
@@ -186,19 +189,23 @@ async function push() {
     seen = Math.max(seen, result.version);
     lastPushed = result.version;
     if (newer) { schedule(); return true; }
-    saveBase(result.cloud);
-    forgetRenames(sent);
     if (result.wallLocal) setRaw(KEYS.wallLocal, "1"); else remove(KEYS.wallLocal);
     const now = localData();
     if (!sameData(now, before)) {
       // The user kept typing while this was sent. What was written is the new common history, so it has to reach
       // this device too, or the next push would read another device's edits in it as deleted here.
+      saveBase(result.cloud);
+      forgetRenames(sent);
       const next = merge(fingerprint(before), now, result.merged, { renamed: renamed() });
       if (!sameData(next, now)) replaceLocal(next);
       schedule();
       return true;
     }
-    if (!sameData(result.merged, before)) replaceLocal(result.merged); // another device's edits came in with the merge
+    // another device's edits came in with the merge; when they do not fit here, the old history stays and the
+    // device stays dirty, so the next push still counts them as the other device's
+    if (!sameData(result.merged, before) && !replaceLocal(result.merged)) return false;
+    saveBase(result.cloud);
+    forgetRenames(sent);
     setDirty(false);
     return true;
   } catch (err) {
@@ -305,7 +312,7 @@ function onSnapshot(id, snap) {
   if (!copy) { setDirty(true); schedule(); return; } // not a copy at all: this device's data goes up over it
   const remote = copy.data;
   const next = isDirty() && hasBase() ? merge(loadBase(), local, remote, { renamed: renamed() }) : remote;
-  if (!sameData(next, local)) replaceLocal(next);
+  if (!sameData(next, local) && !replaceLocal(next)) return; // a full storage: this copy is not the common history
   saveBase(remote);
   applied = version;
   if (isDirty()) schedule();
