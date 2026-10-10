@@ -50,10 +50,6 @@ function onAuthChange(u) {
     if (signingOut || !isAuthed()) return;
     // The session ended elsewhere (another tab, expiry) or this was a stale local copy. Reloading drops the
     // previous account's letters, chat and AI phrases that live only in memory.
-    // When another tab signed out and took the account's data off the device (its owner mark is gone), this tab
-    // may have written some of it back a moment later (its view of storage lags behind): that goes too.
-    const was = currentUser()?.uid;
-    if (was && getRaw(KEYS.owner) !== was) forgetAccountData();
     clearUser();
     location.reload();
   }
