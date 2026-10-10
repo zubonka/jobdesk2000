@@ -15,10 +15,18 @@ const timeout = (promise, ms, what) => Promise.race([
 
 // The worker runs with this site's origin, so it is checked like the main script: fetched with its SRI hash
 // and handed to pdf.js as a blob: URL (a plain workerSrc would be importScripts()-ed without any check).
+// The time limit covers the body too (a download can stall after the headers). AbortSignal.timeout would be
+// shorter, but Safari before 16 does not have it.
 async function verifiedWorkerUrl() {
-  const res = await fetch(CDN + "pdf.worker.min.js", { integrity: WORKER_INTEGRITY, mode: "cors", credentials: "omit", signal: AbortSignal.timeout(LOAD_TIMEOUT_MS) });
-  if (!res.ok) throw new Error("pdf.js worker HTTP " + res.status);
-  return URL.createObjectURL(new Blob([await res.text()], { type: "text/javascript" }));
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), LOAD_TIMEOUT_MS);
+  try {
+    const res = await fetch(CDN + "pdf.worker.min.js", { integrity: WORKER_INTEGRITY, mode: "cors", credentials: "omit", signal: ctrl.signal });
+    if (!res.ok) throw new Error("pdf.js worker HTTP " + res.status);
+    return URL.createObjectURL(new Blob([await res.text()], { type: "text/javascript" }));
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function loadScript() {
