@@ -145,6 +145,24 @@ test("a numbered bold list or a Ref: line inside the letter is kept, notes after
   assert.equal(bodyOf(await write({ lang: "English" })).text, formal);
 });
 
+test("notes after a closing the model chose itself, or quoting the closing, still go; a body sentence is no sign-off", async () => {
+  const letter = "Шановна командо Acme!\n\nМаю шість років досвіду в дизайні й люблю складні задачі.\n\nДякую за увагу!\nОлена";
+  writes(letter + "\nNotes:\n- tone kept warm\n- 120 words");
+  assert.equal(bodyOf(await write()).text, letter);
+
+  const english = "Dear Acme team,\n\nI have six years of product design experience and would love to join you.\n\nBest,\nOlena";
+  writes(english + "\n\n**Notes:**\n* kept it short\n* no clichés");
+  assert.equal(bodyOf(await write({ lang: "English" })).text, english);
+
+  const signed = "Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nЗ повагою,\nОлена";
+  writes(signed + "\nNotes:\n- Підпис «З повагою», як прийнято в листах\n- без кліше");
+  assert.equal(bodyOf(await write()).text, signed);
+
+  const list = "Шановна командо Acme!\n\nЯ щиро захоплююся вашими проєктами. Ось що я принесу:\n\n1. **Дизайн-системи**: шість років.\n2. **Брендинг**: лейбли.\n\nДякую за увагу!\nОлена";
+  writes(list);
+  assert.equal(bodyOf(await write()).text, list.replace(/\*\*/g, ""));
+});
+
 test("a letter without a sign-off loses only the notes at its very end", async () => {
   writes("Шановна командо! Маю шість років досвіду в дизайні й люблю складні задачі.\n1. **Length**: 120 words\n\nOutput: plain text", "MAX_TOKENS");
   assert.match(bodyOf(await write()).text, /^Шановна командо! Маю шість років досвіду в дизайні й люблю складні задачі\.\n\nЗ повагою,\nОлена$/);
