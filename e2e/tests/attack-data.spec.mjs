@@ -354,6 +354,22 @@ const isoIn = (days) => {
   return [d.getFullYear(), d.getMonth() + 1, d.getDate()];
 };
 
+test("a page left open overnight moves its deadline badges to the new day", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-10-10T21:00:00+03:00") });
+  await seedVacancies(page, { [PROGRESS_KEY]: { ...SEED_PROGRESS, "Label Records|Motion Designer": { status: "Подалася", date: "2026-10-01", deadline: "2026-10-11", note: "" } } });
+  await boot(page);
+  await openWindow(page, "vacancies");
+  const label = card(page, "Label Records");
+  await expect(label.locator(".jtag.dl")).toHaveText("⏳ дедлайн завтра");
+  await expect(label.locator(".jcal")).toHaveCount(1);
+  // the lid closed for a few hours: due timers fire once when it opens again
+  await page.clock.fastForward("04:00:00"); // past midnight in Kyiv
+  await expect(label.locator(".jtag.dl")).toHaveText("⏳ дедлайн сьогодні!");
+  await page.clock.fastForward("24:00:00");
+  await expect(label.locator(".jtag.dl")).toHaveText("⏳ дедлайн минув");
+  await expect(label.locator(".jcal"), "no calendar event for a day that has passed").toHaveCount(0);
+});
+
 test("an impossible calendar date shows no deadline badge while the date field shows nothing", async ({ page }) => {
   // the 3rd day from now written as day 30+ of the month before ("2026-09-43"), the way a hand edit or another app could store it
   const [y, m, d] = isoIn(3);

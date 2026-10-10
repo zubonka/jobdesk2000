@@ -78,5 +78,6 @@ export function initStats() {
   // a cloud replace ("state") reaches this module as jobs {type: "reload"}, emitted by main.js after loadJobs()
   on("jobs", render);
   on("user", render);
+  on("day", render); // a new week moves "цей тиждень"
   render();
 }

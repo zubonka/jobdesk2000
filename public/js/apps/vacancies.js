@@ -123,6 +123,14 @@ function deadlineSlot(job) {
   return html`${deadlineBadge(job)}${days !== null && days >= 0 ? html`<button type="button" class="ui jtag jcal" data-id="${job.id}" title="Додати дедлайн у календар">📅 у календар</button>` : ""}`;
 }
 
+// a new day: only the deadline badges are drawn again, so a field being typed in stays as it is
+function redrawDeadlines() {
+  for (const el of byId("board").querySelectorAll(".jobcard")) {
+    const job = getJob(el.dataset.id);
+    if (job) setHtml(el.querySelector(".dl-slot"), deadlineSlot(job));
+  }
+}
+
 function addToCalendar(id) {
   const job = getJob(id), ics = job && deadlineCalendar(job);
   if (!ics) return;
@@ -389,5 +397,6 @@ export function initVacancies() {
   // a cloud replace ("state") reaches this module as jobs {type: "reload"}, emitted by main.js after loadJobs()
   on("jobs", onJobsChange);
   on("user", refresh);
+  on("day", redrawDeadlines);
   refresh();
 }

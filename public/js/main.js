@@ -24,6 +24,7 @@ import { initAuthDialog } from "./apps/auth-dialog.js";
 import { initBackup } from "./apps/backup.js";
 import { initOffline } from "./services/offline.js";
 import { toast } from "./ui/toast.js";
+import { todayISO } from "./core/dom.js";
 
 loadJobs();
 
@@ -90,6 +91,19 @@ maybeWelcome();
 takeSharedLink();
 setTimeout(greet, 1000);
 setTimeout(() => { if (!isTalking()) remindDeadline(); }, 12000); // after the greeting has gone
+
+// A tab left open overnight, or an installed app resumed on a phone, must not keep last day's deadline badges
+// ("дедлайн завтра" on the day itself) or last week's statistics.
+let today = todayISO();
+function checkDay() {
+  if (todayISO() === today) return;
+  today = todayISO();
+  emit("day");
+  if (!isTalking()) remindDeadline();
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkDay(); });
+window.addEventListener("focus", checkDay);
+setInterval(checkDay, 60_000);
 
 // Small handle for manual checks and browser tests.
 window.jobdesk = { openWin, closeWin, say, hide, emit };

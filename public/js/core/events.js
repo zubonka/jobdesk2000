@@ -14,6 +14,7 @@
 //   firebase   Firebase finished loading
 //   storage-full  the browser refused to save (detail: the storage key); main.js tells the user
 //   sync-too-big  the cloud refused the copy as too big (very long notes or CV); main.js tells the user
+//   day        the local date changed while the page stayed open (main.js); what depends on today is drawn again
 
 const handlers = new Map();
 
