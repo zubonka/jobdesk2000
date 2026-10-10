@@ -40,9 +40,10 @@ const INTRO_LINE = /^\s*(ось|here is|here's)(?![\p{L}\p{N}_])[^\n]{0,80}:\s*\
 // ("Best regards to the team" or "Щиро дякую за розгляд." are letter text).
 const closingLine = (words) => new RegExp(String.raw`^\s*(?:\*\*)?\s*(${words})\s*(?:[,!.]\s*(?:\p{L}+(?:[\s'-]\p{L}+){0,2})?)?\s*(?:\*\*)?\s*$`, "iu");
 // the closing proper, which ends a letter
-const CLOSING = String.raw`(?:і|зі щирою\s+)?з\s+повагою|щиро(?:\s+ваш[аі]?)?|і?з\s+найкращими\s+побажаннями|з вдячністю|з надією на (?:плідну\s+)?співпрацю|сердечно|з теплом|(?:with\s+)?(?:kind|best|warm(?:est)?)\s+regards|kindest regards|best wishes|best|all the best|sincerely(?:\s+yours)?|yours(?:\s+(?:sincerely|truly|faithfully))?|warmly|regards|respectfully|cheers`;
-// a thank-you or a looking-forward line: it often stands just above the closing, sometimes in its place
-const THANKS = String.raw`з нетерпінням чекаю[^\n]{0,40}|дякую за увагу|дякую за ваш час|many thanks|thanks|thank you`;
+const CLOSING = String.raw`(?:із|зі|з)\s+(?:щирою\s+|глибокою\s+)?повагою(?:\s+(?:та|і)\s+вдячністю)?|щиро(?:\s+ваш[аі]?)?|(?:із|з)\s+найкращими\s+побажаннями|(?:із|з)\s+вдячністю|з надією на (?:плідну\s+)?співпрацю|сердечно|з теплом|(?:with\s+)?(?:kind|best|warm(?:est)?)\s+regards|kindest regards|(?:with\s+)?best wishes|with gratitude|best|all the best|sincerely(?:\s+yours)?|yours(?:\s+(?:sincerely|truly|faithfully))?|warmly|regards|respectfully|cheers`;
+// A thank-you or a looking-forward line: it often stands just above the closing, sometimes in its place. The
+// looking-forward words stop at punctuation, so "З нетерпінням чекаю на зустріч, щоб розповісти більше." is letter text.
+const THANKS = String.raw`з нетерпінням чекаю[^\n,.!?]{0,40}|дякую за увагу|дякую за ваш час|many thanks|thanks|thank you`;
 const CLOSING_LINE = closingLine(CLOSING);
 const SIGN_OFF_LINE = closingLine(CLOSING + "|" + THANKS);
 // a name under the closing: up to three words, initials allowed
@@ -50,9 +51,10 @@ const NAME_LINE = /^\s*\p{L}+(?:[\s'’.-]+\p{L}+){0,2}\.?\s*$/u;
 // a markdown rule a model puts between the letter and its notes
 const RULE = /^\s*([-*_])\s*(?:\1\s*){2,}$/;
 
-// A sign-off line that ends the letter: the last line, or with the name on it or on the next line. A thank-you line
-// followed by more text is part of the letter.
+// A sign-off line that ends the letter: a closing proper always; a thank-you line when it is the last line or has the
+// name on it or on the next line (followed by more text it is part of the letter).
 function closesLetter(lines, i) {
+  if (CLOSING_LINE.test(lines[i])) return true;
   if (!SIGN_OFF_LINE.test(lines[i])) return false;
   const next = lines.slice(i + 1).find((line) => line.trim());
   return next === undefined || /[,!.]\s*\p{L}/u.test(lines[i]) || NAME_LINE.test(next);
@@ -89,17 +91,30 @@ function cleanLetter(raw) {
   return out.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-// A letter cut off by the token limit: drop the unfinished sentence and sign it in the letter's language. A closing
-// line (not a thank-you, which can stand above it or be cut itself) means the cut came after the letter, in the name
-// or the contacts; a bare closing at the very end only gets the name.
+// the end of the last full sentence: a dot inside an email or a link is not one
+const sentenceEnd = (text) => { let at = -1; for (const m of text.matchAll(/[.!?](?=\s|$)/g)) at = m.index; return at; };
+const POSTSCRIPT = /^\s*P\.?\s?S\.?\s*/i;
+
+// A letter cut off by the token limit. When its sign-off came through (a closing proper, or a thank-you line with the
+// name right under it), the cut fell in the signature or below it: a bare closing gets the name, a name cut short is
+// written out, an unfinished P.S. ends at its last full sentence or goes. Otherwise the unfinished sentence goes and
+// the letter is signed in its language.
 function finishCleanly(text, lang, name) {
   let s = text.trim();
-  const lines = s.split("\n").filter((line) => line.trim());
-  if (lines.some((line) => CLOSING_LINE.test(line))) {
-    const last = lines[lines.length - 1];
-    return name && CLOSING_LINE.test(last) && !/[,!.]\s*\p{L}/u.test(last) ? s + "\n" + name : s;
+  const lines = s.split("\n");
+  const first = name.trim().split(/\s+/)[0];
+  const signed = lines.some((line, i) => CLOSING_LINE.test(line) || (first && SIGN_OFF_LINE.test(line) && (lines[i + 1] || "").trim().startsWith(first)));
+  if (signed) {
+    const last = lines[lines.length - 1].trim(), before = lines.slice(0, -1);
+    if (name && CLOSING_LINE.test(last) && !/[,!.]\s*\p{L}/u.test(last)) return s + "\n" + name;
+    if (name && name.startsWith(last) && !(name + " ").startsWith(last + " ")) return [...before, name].join("\n");
+    if (POSTSCRIPT.test(last) && !/[.!?)»"]$/.test(last)) {
+      const head = last.match(POSTSCRIPT)[0].length, end = sentenceEnd(last.slice(head));
+      return (end >= 0 ? [...before, last.slice(0, head + end + 1)] : before).join("\n").trim();
+    }
+    return s;
   }
-  const lastEnd = Math.max(s.lastIndexOf("."), s.lastIndexOf("!"), s.lastIndexOf("?"));
+  const lastEnd = sentenceEnd(s);
   if (lastEnd > 40) s = s.slice(0, lastEnd + 1);
   return s + (lang === "English" ? "\n\nKind regards,\n" : "\n\nЗ повагою,\n") + name;
 }

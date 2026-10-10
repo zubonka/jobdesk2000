@@ -233,6 +233,52 @@ test("a note the user asked for in the letter stays, notes under the letter go, 
   assert.equal(bodyOf(await write()).text, LETTER, "the rule above the notes goes with them");
 });
 
+test("a cut letter keeps a signature that came through: contacts under a thank-you, a name cut short, an unfinished P.S.", async () => {
+  const thanks = "Dear Acme team,\n\nI have six years of product design experience.\n\nThanks,\nOlena Koval\nolena.koval@example.com";
+  writes(thanks, "MAX_TOKENS");
+  assert.equal(bodyOf(await write({ lang: "English", name: "Olena" })).text, thanks, "the dot in the email is no sentence end");
+
+  const dyakuyu = "Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nДякую за увагу!\nОлена Коваль\nolena.koval@example.com\n+380 50 1";
+  writes(dyakuyu, "MAX_TOKENS");
+  assert.equal(bodyOf(await write()).text, dyakuyu);
+
+  writes("Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nЗ повагою,\nОле", "MAX_TOKENS");
+  assert.equal(bodyOf(await write({ name: "Олена Коваль" })).text, "Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nЗ повагою,\nОлена Коваль");
+  writes(LETTER, "MAX_TOKENS");
+  assert.equal(bodyOf(await write({ name: "Олена Коваль" })).text, LETTER, "a short form of the name is the model's choice");
+
+  const signedEn = "Dear Acme team,\n\nI have six years of product design experience.\n\nKind regards,\nOlena Koval";
+  writes(signedEn + "\n\nP.S. I would be glad to walk you through my portf", "MAX_TOKENS");
+  assert.equal(bodyOf(await write({ lang: "English", name: "Olena" })).text, signedEn);
+  writes(signedEn + "\n\nP.S. My portfolio is at behance.net/olena. I would be glad to walk you thr", "MAX_TOKENS");
+  assert.equal(bodyOf(await write({ lang: "English", name: "Olena" })).text, signedEn + "\n\nP.S. My portfolio is at behance.net/olena.");
+
+  writes("Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nЗі щирою повагою,", "MAX_TOKENS");
+  assert.equal(bodyOf(await write()).text, "Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nЗі щирою повагою,\nОлена");
+});
+
+test("a closing proper ends the letter whatever stands under it, and a looking-forward sentence is letter text", async () => {
+  const titled = "Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nЗ повагою,\nОлена Коваль, продуктова дизайнерка";
+  writes(titled + "\n\nNotes:\nI kept the tone warm and highlighted design systems.\nLength: 120 words");
+  assert.equal(bodyOf(await write()).text, titled);
+
+  const bold = "Dear Acme team,\n\nI have six years of product design experience.\n\nKind regards,\n**Olena Koval**";
+  writes(bold + "\n\nNotes:\nI kept the tone warm.");
+  assert.equal(bodyOf(await write({ lang: "English" })).text, bold.replace(/\*\*/g, ""));
+
+  for (const forward of ["З нетерпінням чекаю на відповідь, щоб обговорити деталі.", "З нетерпінням чекаю на співбесіду. Дякую!"]) {
+    const letter = "Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\n" + forward +
+      "\n\nПримітка: можу розпочати роботу з 1 листопада.\n\nЗ повагою,\nОлена";
+    writes(letter);
+    const res = await post({ action: "revise", job: JOB, cv: CV, letter: LETTER, request: "додай примітку, що можу почати з 1 листопада", name: "Олена", gender: "f" });
+    assert.equal(bodyOf(res).text, letter, forward);
+  }
+
+  const sincere = "Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nЗі щирою повагою,\nОлена";
+  writes(sincere + "\n\nNotes:\nI kept the tone warm.");
+  assert.equal(bodyOf(await write()).text, sincere);
+});
+
 test("closings a model often picks are known, so prose notes under them go", async () => {
   const english = "Dear Acme team,\n\nI have six years of product design experience.\n\nWith kind regards,\nOlena";
   writes(english + "\n\nNotes:\nI kept the tone warm and highlighted design systems.\nLength: 120 words");
