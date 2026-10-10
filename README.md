@@ -235,16 +235,22 @@ formats are shared with the original single-file app and with existing cloud cop
   A label of any gender reads back as the same status, and the next save writes the labels in the user's current form.
 - Cloud copy: for a signed-in user every `jobdesk2000*` key is mirrored to the Firestore document
   `users/<uid>`: field `data` holds a JSON string of `{ key: raw value }`, field `updated` the write time in ms,
-  always above the `updated` it replaced (a device ignores a copy older than one it already has).
-  The `jd2000_*` keys stay on the device. Every write is a Firestore transaction: when another device changed
-  the copy meanwhile, the two are merged against their common history (`jd2000_sync_base`), key by key and, for
-  the vacancies, field by field; a rename on one side carries the other side's edits over. Edits made offline,
-  before the sync started or in a tab closed at once stay marked (`jd2000_sync_dirty`) until the cloud has them.
+  always above the `updated` it replaced, so it is also the copy's version: a device ignores a copy older than
+  one it already has and tells the echo of its own write by it. The `jd2000_*` keys stay on the device.
+  Every write is a Firestore transaction: when another device changed the copy meanwhile, the two are merged
+  against their common history (`jd2000_sync_base`), key by key and, for the vacancies, field by field.
+  A rename carries the other side's edits over: this device's renames are recorded (`jd2000_renames`) until the
+  cloud has them; another device's are recognised by content, for cards with a link or a note. Edits made
+  offline, before the sync started or in a tab closed at once stay marked (`jd2000_sync_dirty`) until the cloud
+  has them. A tab loads the vacancies again before a change when another tab saved meanwhile.
 - Size: the copy is kept under 900 KB in UTF-8 bytes (Firestore's limit is 1 MiB; Cyrillic takes two bytes
   a letter). A new wallpaper is compressed to at most 600 KB; when notes push the copy past the limit, the
   wallpaper stays on its device and the copy says so (`jd2000_wall_omitted`), so other devices keep theirs.
-- On sign-in vacancies created here as a guest join the account, and a device that holds another account's data
-  never uploads it. Signing out removes the account's data from the device only when the cloud has all of it.
+- On sign-in vacancies created here as a guest join the account, also after a reload before the first sync
+  (`jd2000_joining`). A vacancy both have is joined field by field: what the guest filled in is added, the
+  account's values win where both have one, and two notes are both kept. A device that holds another account's
+  data never uploads it. Signing out removes the account's data from the device only when the cloud has all of
+  it; signing out while Firebase cannot be reached ends the session on the next load (`jd2000_signed_out`).
 - `tests/web/jobs.test.mjs` pins these formats against the original app.
 
 ## Where the texts live

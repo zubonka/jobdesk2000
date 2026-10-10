@@ -360,6 +360,56 @@ test("a guest's copy of a vacancy the account already has, or an older backup of
   await laptop.context.close();
 });
 
+test("a guest's vacancies still join the account when the page reloads before its first sync ran", async ({ page, browser }, testInfo) => {
+  const email = freshEmail(testInfo, "sync");
+  await seedStorage(page, { jobdesk2000_welcomed: "1" });
+  await openApp(page);
+  await register(page, { name: "Олена", email });
+  await addByHand(page, "Designer", "Account Co");
+  await waitSynced(page);
+  const uid = await uidOf(page);
+
+  const guest = await newDevice(browser, {
+    jobdesk2000_welcomed: "1",
+    jobdesk2000_added_v1: [{ prio: "Подумати", company: "Guest Co", title: "Motion", field: "—", emp: "—", loc: "—", salary: "—", url: "#" }],
+    jobdesk2000_v1: { "Guest Co|Motion": { status: "Подалися", date: "2026-10-02", deadline: "", note: "гість" } },
+  });
+  await cutFirestore(guest.page); // signed in, but the first sync cannot run (a slow network, the tab closed)
+  await signIn(guest.page, email);
+  await guest.page.waitForTimeout(1500);
+  expect(await guest.page.evaluate(() => localStorage.getItem("jd2000_owner"))).toBeNull();
+  await restoreFirestore(guest.page);
+  await guest.page.reload();
+  await waitSynced(guest.page);
+  await expect.poll(async () => (await cloudCompanies(uid)).sort(), { timeout: 20_000 }).toEqual(["Account Co", "Guest Co"]);
+  expect((await localCompanies(guest.page)).sort()).toEqual(["Account Co", "Guest Co"]);
+  expect(progressIn(await cloudData(uid))["Guest Co|Motion"]).toMatchObject({ note: "гість" });
+  await guest.context.close();
+});
+
+test("signing out before Firebase has loaded ends the session instead of signing back in on the next load", async ({ page }, testInfo) => {
+  await seedStorage(page, { jobdesk2000_welcomed: "1" });
+  await openApp(page);
+  await register(page, { name: "Олена", email: freshEmail(testInfo, "sync") });
+  await waitSynced(page);
+
+  const SDK = /gstatic\.com\/firebasejs\//;
+  await page.route(SDK, () => {}); // the SDK never arrives on this load
+  await page.reload();
+  await page.waitForFunction(() => !!window.jobdesk);
+  await expect(page.locator("#acc-label")).toHaveText("Олена");
+  await page.locator("#btn-account").click();
+  await confirmYes(page);
+  await page.unroute(SDK);
+  await page.waitForEvent("load", { timeout: 15_000 });
+  await expect(page.locator("#acc-label")).toHaveText("Гість");
+  await page.waitForTimeout(3000); // Firebase loads now and restores the old session
+  await expect(page.locator("#acc-label")).toHaveText("Гість");
+  await page.reload();
+  await page.waitForTimeout(3000);
+  await expect(page.locator("#acc-label"), "the session itself has ended").toHaveText("Гість");
+});
+
 /* ----- accounts on one device ----- */
 
 test("account A then account B on the same device: B's device and cloud copy get nothing of A's", async ({ page }, testInfo) => {

@@ -20,6 +20,8 @@ export const KEYS = {
   syncDirty: "jd2000_sync_dirty",    // "1" while local changes have not reached the cloud yet
   wallLocal: "jd2000_wall_local",    // "1" when the wallpaper is too big for the cloud copy and lives here only
   renames: "jd2000_renames",         // { <old job id>: <new job id> } renamed here and not in the cloud yet
+  joining: "jd2000_joining",         // uid signed in here whose first sync has not run yet, this device only
+  signedOut: "jd2000_signed_out",    // uid signed out here while Firebase could not be reached, this device only
 };
 
 // Keys with this prefix are mirrored to the cloud for signed-in users.

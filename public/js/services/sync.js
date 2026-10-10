@@ -231,7 +231,9 @@ onWrite(() => {
 });
 
 function firstSync(remote, version) {
-  const owner = getRaw(KEYS.owner) || (loadedUid === uid ? uid : "");
+  // A page that loaded signed in holds that account's data, unless the sign-in itself happened on an earlier page
+  // that closed before this sync ran: then the data on the device is still a guest's, joining the account.
+  const owner = getRaw(KEYS.owner) || (loadedUid === uid && getRaw(KEYS.joining) !== uid ? uid : "");
   const local = localData();
   if (owner && owner !== uid) {
     clearUserData(); // this device held someone else's data
@@ -254,6 +256,7 @@ function firstSync(remote, version) {
     setDirty(hasUserData(local)); // a new account: whatever is here becomes its first cloud copy
   }
   setRaw(KEYS.owner, uid);
+  remove(KEYS.joining);
   // An empty cloud copy is a new account: an empty base, so what any device adds from now on counts as an addition
   // (without a base the cloud would win and could wipe the vacancies a guest brought in).
   saveBase(remote);
@@ -295,6 +298,8 @@ export async function startSync(id) {
   if (uid === id) return;
   stopSync();
   uid = id;
+  // signed in on this page: remembered, so a reload before the first sync still treats the data here as a guest's
+  if (loadedUid !== id && !getRaw(KEYS.owner)) setRaw(KEYS.joining, id);
   const fb = await loadFirebase();
   if (!fb || uid !== id) return;
   unsubscribe = fb.F.onSnapshot(docRef(fb, id), { includeMetadataChanges: true }, (snap) => onSnapshot(id, snap),

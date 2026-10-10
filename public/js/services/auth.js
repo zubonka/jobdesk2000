@@ -4,6 +4,8 @@
 import { loadFirebase, firebaseNow } from "./firebase.js";
 import { startSync, stopSync, flushSync, forgetAccountData } from "./sync.js";
 import { emit } from "../core/events.js";
+import { KEYS, getRaw, setRaw, remove } from "../core/storage.js";
+import { sleep } from "../core/dom.js";
 import { currentUser, isAuthed, setUser, clearUser, genderFor, hasGenderFor, rememberGender } from "../data/user.js";
 
 // Set while signOutUser runs: Firebase reports the sign-out through onAuthStateChanged too, and that path must
@@ -16,7 +18,16 @@ let signingUp = null;
 const nameOf = (u, email) => u.displayName || signingUp?.name || (u.email || email || "").split("@")[0];
 const genderOf = (u) => (!hasGenderFor(u.uid) && signingUp?.gender) || genderFor(u.uid);
 
+// how long signing out waits for Firebase when it has not loaded yet
+const SIGN_OUT_WAIT_MS = 5000;
+
 function onAuthChange(u) {
+  if (u && getRaw(KEYS.signedOut) === u.uid) {
+    // signed out here while Firebase could not be reached: its session ends now instead of coming back
+    firebaseNow()?.A.signOut(firebaseNow().auth).catch(() => {});
+    return;
+  }
+  remove(KEYS.signedOut);
   if (u) {
     const local = currentUser();
     if (!local || local.uid !== u.uid) setUser({ name: nameOf(u), email: u.email || "", gender: genderOf(u), uid: u.uid });
@@ -110,8 +121,10 @@ export async function signOutUser() {
   signingOut = true;
   const synced = await flushSync();
   stopSync();
-  const fb = firebaseNow();
+  const fb = firebaseNow() || (await Promise.race([loadFirebase(), sleep(SIGN_OUT_WAIT_MS).then(() => null)]));
+  const uid = currentUser()?.uid;
   if (fb) { try { await fb.A.signOut(fb.auth); } catch (e) { /* signing out locally is enough */ } }
+  else if (uid) setRaw(KEYS.signedOut, uid); // Firebase would bring the session back on the next load
   if (synced) forgetAccountData();
   clearUser();
   location.reload();
