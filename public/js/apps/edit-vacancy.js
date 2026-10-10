@@ -54,6 +54,7 @@ const readForm = () => Object.fromEntries(FIELDS.map((name) => [name, formEl(nam
 function open(id, values) {
   editingId = id;
   session++;
+  byId("ev-analyze").disabled = false; // a request of a closed dialog may still be running; this one starts fresh
   fillForm(values);
   openDialog(DIALOG);
 }
@@ -111,7 +112,7 @@ async function analyze() {
     if (mine === session) setMsg("Не вдалося ✦ " + err.message);
     return;
   } finally {
-    button.disabled = false;
+    if (mine === session) button.disabled = false;
   }
   if (mine === session) fillFromAnalysis(d);
 }

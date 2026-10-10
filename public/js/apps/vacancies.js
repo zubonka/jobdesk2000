@@ -291,7 +291,7 @@ export function takeSharedLink() {
 
 // "/" jumps to the search box while the vacancies window is in front
 function onShortcut(e) {
-  if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey || !isFocused("vacancies")) return;
+  if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey || !isFocused("vacancies") || document.querySelector(".overlay.open")) return;
   if (e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable]")) return;
   e.preventDefault();
   byId("f-search").focus();

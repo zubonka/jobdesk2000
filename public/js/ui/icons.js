@@ -1,7 +1,7 @@
 // Desktop icons. On desktop they snap to a grid, can be dragged and remember their cells;
 // on phones they form a fixed home-screen grid (row by row) and are not draggable.
 
-import { KEYS, getObject, setJSON, getRaw, setRaw } from "../core/storage.js";
+import { KEYS, getObject, setJSON } from "../core/storage.js";
 import { byId, qsa } from "../core/dom.js";
 import { on } from "../core/events.js";
 import { openWin, isOpen, isMobile, uiScale } from "./windows.js";
@@ -50,6 +50,8 @@ function place(ic, cell) {
   ic.style.top = y + "px";
 }
 
+// Places the icons for the current screen. Only a drag saves a position: a narrow moment (a snapped browser,
+// a rotated tablet) moves icons into view without forgetting where the person put them.
 export function layoutIcons() {
   const used = new Set();
   if (isMobile()) {
@@ -58,17 +60,12 @@ export function layoutIcons() {
     return;
   }
   icons().forEach((ic, i) => {
-    const app = ic.dataset.open;
-    const saved = positions[app];
-    const at = saved && fromSaved(saved);
+    const saved = positions[ic.dataset.open];
+    const at = saved && Number.isFinite(saved.x) && Number.isFinite(saved.y) && fromSaved(saved);
     const cell = freeCell(at ? xyToCell(at.x, at.y) : { col: 0, row: i }, used);
     used.add(key(cell));
     place(ic, cell);
-    positions[app] = toSaved(cellToXY(cell));
   });
-  // only a real change is saved: a plain page load must not look like an edit to cloud sync
-  const text = JSON.stringify(positions);
-  if (text !== getRaw(KEYS.iconPos)) setRaw(KEYS.iconPos, text);
 }
 
 function makeDraggable(ic) {
@@ -83,9 +80,10 @@ function makeDraggable(ic) {
     if (!drag) return;
     if (Math.abs(e.clientX - drag.sx) > 4 || Math.abs(e.clientY - drag.sy) > 4) { drag.moved = true; ic.classList.add("dragging"); }
     if (!drag.moved) return;
-    const desk = byId("desktop").getBoundingClientRect();
-    const x = Math.max(0, Math.min(e.clientX - desk.left - drag.dx, desk.width - ic.offsetWidth));
-    const y = Math.max(0, Math.min(e.clientY - desk.top - drag.dy, desk.height - ic.offsetHeight));
+    // icon coordinates are relative to the icon layer (#icons), which sits a little inside the desktop
+    const layer = ic.offsetParent.getBoundingClientRect(), desk = byId("desktop").getBoundingClientRect();
+    const x = Math.max(desk.left - layer.left, Math.min(e.clientX - layer.left - drag.dx, desk.right - layer.left - ic.offsetWidth));
+    const y = Math.max(desk.top - layer.top, Math.min(e.clientY - layer.top - drag.dy, desk.bottom - layer.top - ic.offsetHeight));
     ic.style.left = x + "px";
     ic.style.top = y + "px";
   });

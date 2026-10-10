@@ -28,7 +28,9 @@ const openHooks = {};
 export const winEl = (app) => byId("win-" + app);
 export const isMobile = () => window.matchMedia(MOBILE).matches;
 export const uiScale = () => (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16) / 16;
+// open: the window has a taskbar button; minimised: open, but hidden until its button brings it back
 export const isOpen = (app) => !!winEl(app)?.classList.contains("open");
+export const isMinimized = (app) => !!winEl(app)?.classList.contains("minimized");
 export const isFocused = (app) => !!winEl(app)?.classList.contains("focused");
 export const inTileMode = () => tileMode;
 const desktop = () => byId("desktop");
@@ -43,6 +45,7 @@ export function focusWin(app) {
   const w = winEl(app);
   if (!w) return;
   qsa(".win[data-app]").forEach((x) => x.classList.remove("focused"));
+  w.classList.remove("minimized");
   w.classList.add("focused");
   w.style.zIndex = ++zTop;
   emit("windows");
@@ -60,10 +63,18 @@ export function openWin(app) {
   (openHooks[app] || []).forEach((fn) => fn());
 }
 
+export function minimizeWin(app) {
+  const w = winEl(app);
+  if (!w || !w.classList.contains("open")) return;
+  w.classList.add("minimized");
+  w.classList.remove("focused");
+  emit("windows");
+}
+
 export function closeWin(app) {
   const w = winEl(app);
   if (!w) return;
-  w.classList.remove("open", "focused");
+  w.classList.remove("open", "focused", "minimized");
   if (tileMode && w.parentElement === byId("tilewrap")) desktop().appendChild(w);
   emit("windows");
 }
@@ -86,10 +97,14 @@ function placeNew(w) {
 }
 
 // Pulls a window back when it would sit under the taskbar or off the side (content grew, viewport shrank).
+// A window resized bigger than the screen it is now on shrinks back, so its ✕ and grip stay reachable.
 export function keepInView(w) {
-  if (!canDrag() || !w.classList.contains("open")) return;
-  const edge = EDGE * uiScale();
+  if (!canDrag() || !w.classList.contains("open") || w.classList.contains("minimized")) return;
+  const k = uiScale(), edge = EDGE * k;
   const desk = desktop();
+  const maxW = desk.clientWidth - 2 * edge, maxH = desk.clientHeight - 2 * edge;
+  if (w.style.width && w.offsetWidth > maxW) w.style.width = Math.max(MIN_W * k, maxW) + "px";
+  if (w.style.height && w.offsetHeight > maxH) w.style.height = Math.max(MIN_H * k, maxH) + "px";
   const top = w.offsetTop, bottom = top + w.offsetHeight, limit = desk.clientHeight - edge;
   if (bottom > limit) w.style.top = Math.max(edge, top - (bottom - limit)) + "px";
   const left = w.offsetLeft, maxLeft = desk.clientWidth - Math.min(w.offsetWidth, desk.clientWidth - 2 * edge) - edge;
@@ -158,6 +173,7 @@ export function setTileMode(on) {
     if (on) {
       if (APPS[app].needsAuth && !isAuthed()) continue;
       w.classList.add("open");
+      w.classList.remove("minimized");
       wrap.appendChild(w);
     } else {
       desktop().appendChild(w);
@@ -174,9 +190,12 @@ export function initWindows() {
     new ResizeObserver(() => keepInView(w)).observe(w);
   }
   for (const b of qsa("[data-close]")) b.addEventListener("click", (e) => { e.stopPropagation(); closeWin(b.dataset.close); });
-  for (const b of qsa("[data-min]")) b.addEventListener("click", (e) => { e.stopPropagation(); closeWin(b.dataset.min); });
+  for (const b of qsa("[data-min]")) b.addEventListener("click", (e) => { e.stopPropagation(); minimizeWin(b.dataset.min); });
   byId("btn-tile").addEventListener("click", () => setTileMode(!tileMode));
   // phones lay out the fairy differently while a window covers the screen (app.css, body.win-open)
-  on("windows", () => document.body.classList.toggle("win-open", APP_NAMES.some(isOpen)));
-  window.addEventListener("resize", () => qsa(".win[data-app].open").forEach(keepInView));
+  on("windows", () => document.body.classList.toggle("win-open", APP_NAMES.some((app) => isOpen(app) && !isMinimized(app))));
+  window.addEventListener("resize", () => {
+    if (tileMode && isMobile()) setTileMode(false); // phones have no tile button and no room for a grid
+    qsa(".win[data-app].open").forEach(keepInView);
+  });
 }
