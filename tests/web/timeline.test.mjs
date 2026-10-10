@@ -74,3 +74,18 @@ test("an impossible calendar day is not a date", () => {
   for (const bad of ["2026-09-43", "2026-02-30", "2026-13-01", "2026-00-10"]) assert.equal(daysBetween("2026-10-10", bad), null, bad);
   assert.equal(daysBetween("2028-02-28", "2028-02-29"), 1, "a leap day is real");
 });
+
+const { followUpsDue } = await import("../../public/js/data/timeline.js");
+
+test("applications that waited a week to three for an answer are due a follow-up, the longest wait first", () => {
+  const today = "2026-10-20";
+  const jobs = [
+    { id: "a", status: "applied", date: "2026-10-14" }, // 6 days: too early
+    { id: "b", status: "applied", date: "2026-10-13" }, // 7 days
+    { id: "c", status: "applied", date: "2026-09-29" }, // 21 days
+    { id: "d", status: "applied", date: "2026-09-28" }, // 22 days: long gone
+    { id: "e", status: "interview1", date: "2026-10-01" }, // they answered
+    { id: "f", status: "applied", date: "" },
+  ];
+  assert.deepEqual(followUpsDue(jobs, today).map(({ job, days }) => [job.id, days]), [["c", 21], ["b", 7]]);
+});

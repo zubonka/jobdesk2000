@@ -13,6 +13,7 @@ Two Netlify functions do the AI work. Guests keep everything in the browser; sig
 - Vacancies by link, pasted text or by hand; the AI fills in company, title, salary and format.
   Search (the `/` key), filters, priorities, deadline badges and a reminder from the fairy three days ahead.
   A deadline still ahead can be saved as a calendar event (an `.ics` file with a reminder at 9:00 the day before).
+  An application that has waited 7 to 21 days for an answer gets a nudge from the fairy to follow it up, once a day.
 - Statuses with dates and notes; statistics with a funnel (applied, interviews, offers) and the last 8 weeks.
 - Cover letters from the CV (PDF or pasted text) in a chat that rewrites them on request (signed-in users).
 - A desktop of draggable, minimisable windows, tile mode, light and dark themes, a fairy to choose and colour,

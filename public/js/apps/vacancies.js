@@ -1,15 +1,16 @@
 // Vacancies window: adding vacancies (by link, from pasted text or by hand), search and filters, and the board of cards.
 
 import { byId, html, raw, setHtml, safeUrl, todayISO, downloadFile } from "../core/dom.js";
+import { KEYS, getRaw, setRaw } from "../core/storage.js";
 import { on } from "../core/events.js";
 import {
   PRIORITIES, NONE, allJobs, getJob, addJob, setJobField, removeJob, restoreJob, resetProgress, restoreProgress,
   isCollapsed, toggleCollapsed, normalizeUrl,
 } from "../data/jobs.js";
 import { STATUS_KEYS, statusLabel } from "../data/statuses.js";
-import { gender, isAuthed } from "../data/user.js";
+import { gender, isAuthed, gv } from "../data/user.js";
 import { hasCV, persona } from "../data/profile.js";
-import { deadlineIn, daysText } from "../data/timeline.js";
+import { deadlineIn, daysText, followUpsDue } from "../data/timeline.js";
 import { detectSpecialty } from "../content/phrases.js";
 import { analyzeVacancy, analyzeProfile, MIN_VACANCY_TEXT } from "../services/api.js";
 import { deadlineCalendar, calendarName } from "../services/calendar.js";
@@ -363,15 +364,32 @@ const short = (text, max = 60) => (text.length > max ? text.slice(0, max - 1) + 
 const jobLabel = (job) => short(job.company !== NONE ? job.company + " — " + job.title : job.title);
 
 // When the app opens, the fairy points at the nearest deadline of the next few days.
-export function remindDeadline() {
+// The fairy's word for the day when the app opens or a new day begins: a near deadline, or else, once a day, an
+// application that waits for an answer long enough to remind the employer of it.
+export function remindToday() {
+  if (!remindDeadline()) remindFollowUp();
+}
+
+function remindFollowUp() {
+  const today = todayISO();
+  if (!isAuthed() || getRaw(KEYS.followUp) === today) return;
+  const [due] = followUpsDue(allJobs(), today);
+  if (!due) return;
+  setRaw(KEYS.followUp, today);
+  say("📨 " + daysText(due.days) + " тому ти " + gv("подалася", "подався", "подалися") + " на «" + jobLabel(due.job) + "», а відповіді ще нема ✦ саме час нагадати про себе!", POSE.idle, 10000);
+}
+
+// Returns true when it said something.
+function remindDeadline() {
   const today = todayISO();
   const next = allJobs()
     .map((job) => ({ job, days: deadlineIn(job, today) }))
     .filter(({ days }) => days !== null && days >= 0 && days <= DEADLINE_REMIND_DAYS)
     .sort((a, b) => a.days - b.days)[0];
-  if (!next) return;
+  if (!next) return false;
   const when = next.days === 0 ? "Сьогодні" : next.days === 1 ? "Завтра" : "За " + daysText(next.days);
   say("⏳ " + when + " дедлайн: «" + jobLabel(next.job) + "» ✦ не проґав!", POSE.idle, 10000);
+  return true;
 }
 
 const firstLink = (text) => (String(text || "").match(/https?:\/\/[^\s<>"']+/i) || [""])[0];

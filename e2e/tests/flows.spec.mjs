@@ -418,6 +418,21 @@ test("a guest saves a copy of the data, loses it and gets it back from the copy;
   await expect(page.locator("#toast")).toContainText("не схоже на копію");
 });
 
+test("a week after applying with no answer the fairy suggests reminding the employer, once a day", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "flows-desktop", "the reminder logic is the same on every device");
+  const kyivDay = (ms) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Kyiv" }).format(new Date(ms));
+  await seedStorage(page, {
+    jobdesk2000_welcomed: "1",
+    jobdesk2000_added_v1: [{ prio: "Податися", company: "Waiting Co", title: "Designer", field: "—", emp: "—", loc: "—", salary: "—", url: "#" }],
+    jobdesk2000_v1: { "Waiting Co|Designer": { status: "Подалася", date: kyivDay(Date.now() - 10 * 86400000), deadline: "", note: "" } },
+  });
+  await openApp(page);
+  await register(page, { name: "Олена", email: freshEmail(testInfo) });
+  await page.reload(); // the greeting first, then the word for the day
+  await expect(page.locator("#clippy-say")).toContainText("10 днів тому ти подалася на «Waiting Co — Designer», а відповіді ще нема", { timeout: 25_000 });
+  expect(await page.evaluate(() => localStorage.getItem("jd2000_followup"))).toBe(kyivDay(Date.now()));
+});
+
 test.describe("installed or offline", () => {
   test.use({ serviceWorkers: "allow" });
 

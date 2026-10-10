@@ -15,7 +15,7 @@ import { initDialogs, maybeWelcome } from "./ui/dialogs.js";
 import { initClippy, greet, say, hide, isTalking } from "./ui/clippy.js";
 import { initConfirm } from "./ui/confirm.js";
 import { initAuth } from "./services/auth.js";
-import { initVacancies, remindDeadline, takeSharedLink } from "./apps/vacancies.js";
+import { initVacancies, remindToday, takeSharedLink } from "./apps/vacancies.js";
 import { initEditVacancy } from "./apps/edit-vacancy.js";
 import { initStats } from "./apps/stats.js";
 import { initMessenger } from "./apps/messenger.js";
@@ -90,7 +90,12 @@ window.addEventListener("load", initAuth, { once: true });
 maybeWelcome();
 takeSharedLink();
 setTimeout(greet, 1000);
-setTimeout(() => { if (!isTalking()) remindDeadline(); }, 12000); // after the greeting has gone
+// The word for the day comes once the greeting has gone; a slow start can push the greeting past its planned time.
+function whenQuiet(fn, tries = 10) {
+  if (!isTalking()) fn();
+  else if (tries > 0) setTimeout(() => whenQuiet(fn, tries - 1), 2000);
+}
+setTimeout(() => whenQuiet(remindToday), 12000);
 
 // A tab left open overnight, or an installed app resumed on a phone, must not keep last day's deadline badges
 // ("дедлайн завтра" on the day itself) or last week's statistics.
@@ -99,7 +104,7 @@ function checkDay() {
   if (todayISO() === today) return;
   today = todayISO();
   emit("day");
-  if (!isTalking()) remindDeadline();
+  whenQuiet(remindToday);
 }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkDay(); });
 window.addEventListener("focus", checkDay);

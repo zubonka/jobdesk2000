@@ -26,6 +26,14 @@ export function deadlineIn(job, today) {
   return daysBetween(today, job.deadline);
 }
 
+// Applications that have waited `from` to `until` days for an answer (status still "applied"): worth reminding the
+// employer of. The longest wait first.
+export function followUpsDue(jobs, today, from = 7, until = 21) {
+  return jobs.map((job) => ({ job, days: job.status === "applied" ? daysBetween(job.date, today) : null }))
+    .filter(({ days }) => days !== null && days >= from && days <= until)
+    .sort((a, b) => b.days - a.days);
+}
+
 // The Ukrainian plural form for n: forms = [one, few, many], e.g. ["день", "дні", "днів"].
 function plural(n, [one, few, many]) {
   const n10 = n % 10, n100 = n % 100;
