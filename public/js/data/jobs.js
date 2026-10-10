@@ -39,12 +39,22 @@ const text = (value, fallback) => {
   return s || fallback;
 };
 
-// Accepts "https://...", or a bare "site.com/path" typed without the scheme.
+// The link a vacancy opens: "https://...", or a bare "site.com/path" (Cyrillic domains too) typed without the
+// scheme; "#" for anything else.
 export function normalizeUrl(value) {
   const s = String(value ?? "").trim();
   if (/^https?:\/\//i.test(s)) return s;
-  if (/^[\w-]+(\.[\w-]+)+(\/\S*)?$/i.test(s)) return "https://" + s;
+  if (/^[\p{L}\p{N}_-]+(\.[\p{L}\p{N}_-]+)+(\/\S*)?$/u.test(s)) return "https://" + s;
   return "#";
+}
+
+// What the link field keeps: a link as normalizeUrl gives it, and other text as it was written (the original app
+// took any text there, e.g. an e-mail or "Telegram @hr"); only a script in the form of a link is dropped.
+function linkField(value) {
+  const s = String(value ?? "").trim();
+  const link = normalizeUrl(s);
+  if (link !== "#" || !s) return link;
+  return /^(javascript|data|vbscript):/i.test(s.replace(/[\s\u0000-\u001f]/g, "")) ? "#" : s;
 }
 
 // "|" joins company and title into the id, so inside a name it is written as "¦": otherwise "A|B" + "C" and
@@ -57,7 +67,7 @@ function vacancy(company, title, fields) {
     prio: PRIORITIES.includes(fields.prio) ? fields.prio : DEFAULT_PRIO,
     company, title,
     field: text(fields.field, NONE), emp: text(fields.emp, NONE), loc: text(fields.loc, NONE), salary: text(fields.salary, NONE),
-    url: normalizeUrl(fields.url),
+    url: linkField(fields.url),
   };
 }
 

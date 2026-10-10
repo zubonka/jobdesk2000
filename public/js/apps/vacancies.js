@@ -102,7 +102,7 @@ function cardDetails(job) {
 function cardFoot(job, g) {
   return html`<div class="jfoot">
     <select class="st-sel js-f" data-id="${job.id}" data-k="status" aria-label="Статус">${STATUS_KEYS.map((key) => html`<option value="${key}"${selected(key === job.status)}>${statusLabel(key, g)}</option>`)}</select>
-    <a class="jlink" href="${safeUrl(job.url)}" target="_blank" rel="noopener">${LINK_LABELS[job.status] || "Перейти ↗"}</a>
+    <a class="jlink" href="${safeUrl(normalizeUrl(job.url))}" target="_blank" rel="noopener">${LINK_LABELS[job.status] || "Перейти ↗"}</a>
   </div>`;
 }
 

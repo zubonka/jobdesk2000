@@ -364,3 +364,18 @@ test("renames are recorded for the cloud merge, a chain of them as one, a rename
   jobs.updateJob("A|One", { salary: "$1" });
   assert.deepEqual(storedJSON(KEYS.renames), {}, "an edit that keeps the name is no rename");
 });
+
+test("text in the link field that is not a link is kept as written, and only opens nothing", () => {
+  startWith({
+    [KEYS.jobs]: [
+      { prio: "Податися", company: "A", title: "One", url: "hr@acme.com" },
+      { prio: "Податися", company: "B", title: "Two", url: "Telegram @beta_hr" },
+      { prio: "Податися", company: "C", title: "Three", url: "робота.укр/вакансія/123" },
+      { prio: "Податися", company: "D", title: "Four", url: "java\tscript:alert(1)" },
+    ],
+  });
+  jobs.setJobField("A|One", "note", "an unrelated edit saves the whole list");
+  jobs.updateJob("B|Two", { url: "Telegram @beta_hr", salary: "$1" }); // the dialog sends the field back unchanged
+  assert.deepEqual(storedJSON(KEYS.jobs).map((j) => j.url), ["hr@acme.com", "Telegram @beta_hr", "https://робота.укр/вакансія/123", "#"]);
+  assert.deepEqual(jobs.allJobs().map((j) => jobs.normalizeUrl(j.url)), ["#", "#", "https://робота.укр/вакансія/123", "#"]);
+});

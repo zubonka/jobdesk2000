@@ -2,7 +2,7 @@
 // before. Phone calendars, Google Calendar, Outlook and Apple Calendar open the file and offer to add the event.
 
 import { safeUrl } from "../core/dom.js";
-import { NONE } from "../data/jobs.js";
+import { NONE, normalizeUrl } from "../data/jobs.js";
 import { isDate } from "../data/timeline.js";
 
 const DAY_MS = 86400000;
@@ -44,7 +44,7 @@ export const calendarName = (job) => "jobdesk2000-deadline-" + compact(job.deadl
 export function deadlineCalendar(job, now = new Date()) {
   if (!isDate(job.deadline)) return null;
   const name = [job.company, job.title].filter((part) => part && part !== NONE).join(", ");
-  const link = safeUrl(job.url).replace(/[\s\u0000-\u001f\u007f]/g, ""); // a URI value holds no spaces or line breaks
+  const link = safeUrl(normalizeUrl(job.url)).replace(/[\s\u0000-\u001f\u007f]/g, ""); // a URI value holds no spaces or line breaks
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
