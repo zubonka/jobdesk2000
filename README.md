@@ -230,7 +230,8 @@ formats are shared with the original single-file app and with existing cloud cop
 - The status is stored as its label in the user's grammatical gender ("Подалася", "Подався", "Подалися").
   A label of any gender reads back as the same status, and the next save writes the labels in the user's current form.
 - Cloud copy: for a signed-in user every `jobdesk2000*` key is mirrored to the Firestore document
-  `users/<uid>`: field `data` holds a JSON string of `{ key: raw value }`, field `updated` a timestamp in ms.
+  `users/<uid>`: field `data` holds a JSON string of `{ key: raw value }`, field `updated` the write time in ms,
+  always above the `updated` it replaced (a device ignores a copy older than one it already has).
   The `jd2000_*` keys stay on the device. Every write is a Firestore transaction: when another device changed
   the copy meanwhile, the two are merged against their common history (`jd2000_sync_base`), key by key and, for
   the vacancies, field by field; a rename on one side carries the other side's edits over. Edits made offline,

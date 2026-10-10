@@ -1,5 +1,6 @@
 // Mirrors the synced localStorage keys of a signed-in user to Firestore: document users/<uid>, field "data" with a
-// JSON string of { key: rawValue } (the format older versions of the app wrote too), field "updated" in ms.
+// JSON string of { key: rawValue } (the format older versions of the app wrote too), field "updated" in ms
+// (the write time, but always above the "updated" it replaced, so it orders the copies even across skewed clocks).
 //
 // How it stays safe:
 // - Every write is a transaction that reads the cloud copy first and merges (services/sync-merge.js) when another
@@ -35,6 +36,10 @@ let running = null;      // promise of the push in flight; pushes never overlap
 let again = false;       // another push was asked for while one was running
 let lastPushed = null;   // JSON we wrote last, to recognise its echo
 let inflight = null;     // JSON of the write being committed (its snapshot can arrive before the commit resolves)
+// The newest cloud version ("updated") this device has seen or written. Every write sets "updated" above the version
+// it read, so versions only grow; a watch that reconnects can still deliver an older copy after this device's own
+// write, and applying that would take back what the write had just merged in.
+let seen = 0;
 let unsubscribe = null;
 
 const docRef = (fb, id) => fb.F.doc(fb.db, "users", id);
@@ -126,10 +131,14 @@ function clearUserData() {
   remove(KEYS.wallLocal);
 }
 
+// Another tab of this browser signed the account out and took its data off the device (jd2000_owner is gone):
+// this tab must neither bring the data back from a snapshot nor push, until its own sign-out arrives.
+const deviceLeftAccount = (id) => getRaw(KEYS.owner) !== id;
+
 // One transaction: read the cloud copy, merge it with this device's data when someone else changed it, write.
 async function push() {
   const fb = firebaseNow();
-  if (!fb || !uid || !ready) return false;
+  if (!fb || !uid || !ready || deviceLeftAccount(uid)) return false;
   const id = uid;
   let before = null;
   try {
@@ -148,13 +157,17 @@ async function push() {
       if (user !== undefined) merged[KEYS.user] = user;
       const { cloud, wallLocal } = forCloud(merged);
       const json = JSON.stringify(cloud);
+      const read = snap.exists() ? Number(snap.data()?.updated) || 0 : 0;
+      let version = read;
       if (!copy.raw || !sameData(cloud, copy.raw)) {
         inflight = json;
-        tx.set(docRef(fb, id), { data: json, updated: Date.now() }, { merge: true });
+        version = Math.max(Date.now(), read + 1);
+        tx.set(docRef(fb, id), { data: json, updated: version }, { merge: true });
       }
-      return { merged, cloud, json, wallLocal };
+      return { merged, cloud, json, wallLocal, version };
     });
     if (uid !== id) return false;
+    seen = Math.max(seen, result.version);
     lastPushed = result.json;
     saveBase(result.cloud);
     if (result.wallLocal) setRaw(KEYS.wallLocal, "1"); else remove(KEYS.wallLocal);
@@ -232,12 +245,18 @@ function firstSync(remote) {
 
 function onSnapshot(id, snap) {
   if (uid !== id || snap.metadata.hasPendingWrites) return;
+  if (ready && deviceLeftAccount(id)) return;
+  const d = snap.exists() ? snap.data() : null;
+  const version = Number(d?.updated) || 0;
   if (!ready) {
-    if (!snap.metadata.fromCache) firstSync(readCloud(snap, localData())?.data || {});
+    if (snap.metadata.fromCache) return;
+    seen = version;
+    firstSync(readCloud(snap, localData())?.data || {});
     return;
   }
   if (snap.metadata.fromCache) return;
-  const d = snap.exists() ? snap.data() : null;
+  if (version && version < seen) return; // older than a copy this device already has
+  seen = Math.max(seen, version);
   if (d && (d.data === lastPushed || d.data === inflight)) return; // the echo of our own write
   const local = localData();
   const copy = readCloud(snap, local);
@@ -267,6 +286,7 @@ export function stopSync() {
   again = false;
   uid = null;
   ready = false;
+  seen = 0;
 }
 
 // Sends pending changes now, waiting at most a few seconds (offline the write would wait forever).
