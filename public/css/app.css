@@ -292,7 +292,9 @@ label.fl{font-size:.875rem; color:var(--dim); display:block; margin-bottom:.25re
 /* ===== MY FAIRY ===== */
 .fairy-layout{display:flex; gap:1rem; flex-wrap:wrap; align-items:flex-start;}
 .fairy-side{flex:none; text-align:center;}
-.fairy-main{flex:1; min-width:14.375rem;}
+.fairy-main{flex:1; min-width:14.375rem; container-type:inline-size;}
+/* a narrow column (a small phone): each fairy's picture goes above her name, so both type buttons fit */
+@container (max-width:15.5rem){ .type-btn{flex-direction:column; min-width:0;} }
 #fairy-preview svg{width:86%; height:86%;}
 #fairy-preview{width:9.375rem; height:9.375rem; background:var(--field); border:.125rem solid var(--field-br); border-radius:.75rem; display:flex; align-items:center; justify-content:center;}
 .type-row{display:flex; gap:.5rem; margin-bottom:.625rem;}
