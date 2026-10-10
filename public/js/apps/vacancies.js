@@ -1,0 +1,464 @@
+// Vacancies window: adding vacancies (by link, from pasted text or by hand), search and filters, and the board of cards.
+
+import { byId, html, raw, setHtml, safeUrl, todayISO, downloadFile } from "../core/dom.js";
+import { KEYS, getRaw, setRaw } from "../core/storage.js";
+import { on } from "../core/events.js";
+import {
+  PRIORITIES, NONE, allJobs, getJob, addJob, setJobField, removeJob, restoreJob, resetProgress, restoreProgress,
+  isCollapsed, toggleCollapsed, normalizeUrl,
+} from "../data/jobs.js";
+import { STATUS_KEYS, statusLabel } from "../data/statuses.js";
+import { gender, isAuthed, gv } from "../data/user.js";
+import { hasCV, persona } from "../data/profile.js";
+import { deadlineIn, daysText, followUpsDue } from "../data/timeline.js";
+import { detectSpecialty } from "../content/phrases.js";
+import { analyzeVacancy, analyzeProfile, MIN_VACANCY_TEXT } from "../services/api.js";
+import { deadlineCalendar, calendarName } from "../services/calendar.js";
+import { say, reactToStatus } from "../ui/clippy.js";
+import { POSE } from "../fairy/render.js";
+import { openEditVacancy, openNewVacancy } from "./edit-vacancy.js";
+import { confirmDialog } from "../ui/confirm.js";
+import { toast } from "../ui/toast.js";
+import { confetti } from "../ui/confetti.js";
+import { openWin, isFocused, reveal } from "../ui/windows.js";
+
+// filter select id and the job property it compares
+const FILTERS = [["f-prio", "prio"], ["f-field", "field"], ["f-emp", "emp"], ["f-status", "status"]];
+// what the search box looks through
+const SEARCH_FIELDS = ["title", "company", "field", "loc", "salary", "note"];
+// a deadline gets a badge on its card from this many days before it
+const DEADLINE_SOON_DAYS = 14;
+// and the fairy mentions it when the app opens from this many days before it
+const DEADLINE_REMIND_DAYS = 3;
+const UNDO = "↶ Повернути";
+const TAGS = [["field", "◈"], ["emp", "⧗"], ["loc", "📍"], ["salary", "₴"]];
+const LINK_LABELS = { not_applied: "Податися ↗", reject: "Переглянути ↗", offer: "Відкрити ↗" };
+// "jobs" changes that alter what the board shows. Date and note edits are not among them,
+// so a card is never redrawn under the user's cursor while they type.
+const BOARD_CHANGES = ["add", "remove", "restore", "update", "reload", "reset", "import", "collapse"];
+const BOARD_FIELDS = ["prio"]; // a status change redraws its own card only (redrawCard)
+
+const setMsg = (text) => { byId("add-url-msg").textContent = text; };
+const selected = (flag) => (flag ? raw(" selected") : "");
+
+/* ----- filters ----- */
+
+// options: [value, label] pairs; the selection survives the rebuild when its value is still offered
+function fillSelect(sel, allLabel, options) {
+  const current = sel.value;
+  setHtml(sel, html`<option value="">${allLabel}</option>${options.map(([value, label]) => html`<option value="${value}">${label}</option>`)}`);
+  if (options.some(([value]) => value === current)) sel.value = current;
+}
+
+const byUkrainian = new Intl.Collator("uk").compare;
+const distinct = (key) => [...new Set(allJobs().map((job) => job[key]))].filter((value) => value !== NONE).sort(byUkrainian);
+
+function fillFilters() {
+  const g = gender();
+  fillSelect(byId("f-field"), "Всі галузі", distinct("field").map((value) => [value, value]));
+  fillSelect(byId("f-emp"), "Всі типи", distinct("emp").map((value) => [value, value]));
+  fillSelect(byId("f-status"), "Всі статуси", STATUS_KEYS.map((key) => [key, statusLabel(key, g)]));
+}
+
+// one form for comparing: composed Unicode (a PDF from macOS gives decomposed letters), lower case,
+// and one apostrophe for the four ways Ukrainian words get typed (ʼ ' ’ `)
+const lower = (text) => text.normalize("NFC").toLocaleLowerCase("uk").replace(/[ʼ'’‘`]/g, "'");
+
+function visibleJobs() {
+  const active = FILTERS.map(([id, key]) => [key, byId(id).value]).filter(([, value]) => value);
+  const query = lower(byId("f-search").value.trim());
+  const found = (job) => !query || SEARCH_FIELDS.some((key) => lower(job[key]).includes(query));
+  return allJobs().filter((job) => active.every(([key, value]) => job[key] === value) && found(job));
+}
+
+function resetFilters() {
+  for (const [id] of FILTERS) byId(id).value = "";
+  byId("f-search").value = "";
+  applyFilters();
+}
+
+/* ----- board ----- */
+
+function cardHead(job, folded) {
+  return html`<div class="jhead">
+    <select class="js-f jprio-sel" data-id="${job.id}" data-k="prio" aria-label="Пріоритет">${PRIORITIES.map((prio) => html`<option${selected(prio === job.prio)}>${prio}</option>`)}</select>
+    <span class="jtools">
+      <button type="button" class="ui jcol" data-id="${job.id}" title="${folded ? "Розгорнути" : "Згорнути"}">${folded ? "▸" : "▾"}</button>
+      <button type="button" class="ui jedit" data-id="${job.id}" title="Редагувати">✏️</button>
+      <button type="button" class="ui jdel" data-id="${job.id}" title="Видалити вакансію">🗑</button>
+    </span>
+  </div>`;
+}
+
+let fieldIds = 0; // ties each card's labels to its fields (a vacancy id has spaces, so it cannot be an element id)
+
+function cardDetails(job) {
+  const id = "jf" + ++fieldIds;
+  return html`
+    <div class="jrow"><label for="${id}-date">📅 Дата подачі</label><input type="date" id="${id}-date" class="js-f" data-id="${job.id}" data-k="date" value="${job.date}"></div>
+    <div class="jrow"><label for="${id}-deadline">⏳ Дедлайн</label><input type="date" id="${id}-deadline" class="js-f" data-id="${job.id}" data-k="deadline" value="${job.deadline}"></div>
+    <div class="jrow"><label for="${id}-note">📝 Нотатки</label><textarea id="${id}-note" class="js-f" data-id="${job.id}" data-k="note" rows="1" placeholder="контакт, деталі...">${job.note}</textarea></div>`;
+}
+
+function cardFoot(job, g) {
+  return html`<div class="jfoot">
+    <select class="st-sel js-f" data-id="${job.id}" data-k="status" aria-label="Статус">${STATUS_KEYS.map((key) => html`<option value="${key}"${selected(key === job.status)}>${statusLabel(key, g)}</option>`)}</select>
+    <a class="jlink" href="${safeUrl(normalizeUrl(job.url))}" target="_blank" rel="noopener">${LINK_LABELS[job.status] || "Перейти ↗"}</a>
+  </div>`;
+}
+
+// "⏳ ще 3 дні" on the card while the deadline is near, louder on its last day and once it has passed
+function deadlineBadge(job) {
+  const days = deadlineIn(job, todayISO());
+  if (days === null || days > DEADLINE_SOON_DAYS) return "";
+  const [level, text] = days < 0 ? ["late", "дедлайн минув"]
+    : days === 0 ? ["hot", "дедлайн сьогодні!"]
+    : days === 1 ? ["hot", "дедлайн завтра"]
+    : ["soon", "до дедлайну " + daysText(days)];
+  return html`<span class="jtag dl ${level}">⏳ ${text}</span>`;
+}
+
+// the badge, and while the deadline is still ahead a button that puts it in the phone's or computer's calendar
+function deadlineSlot(job) {
+  const days = deadlineIn(job, todayISO()); // null without a deadline, and null >= 0 would be true
+  return html`${deadlineBadge(job)}${days !== null && days >= 0 ? html`<button type="button" class="ui jtag jcal" data-id="${job.id}" title="Додати дедлайн у календар">📅 у календар</button>` : ""}`;
+}
+
+// a new day: only the deadline badges are drawn again, so a field being typed in stays as it is
+function redrawDeadlines() {
+  keepingFocus(() => {
+    for (const el of byId("board").querySelectorAll(".jobcard")) {
+      const job = getJob(el.dataset.id);
+      if (job) setHtml(el.querySelector(".dl-slot"), deadlineSlot(job));
+    }
+  });
+}
+
+function addToCalendar(id) {
+  const job = getJob(id), ics = job && deadlineCalendar(job);
+  if (!ics) return;
+  downloadFile(calendarName(job), ics, "text/calendar;charset=utf-8");
+  toast("Подію збережено ✦ відкрий файл, і дедлайн зʼявиться в календарі");
+}
+
+function card(job, g) {
+  const folded = isCollapsed(job.id);
+  const tags = TAGS.filter(([key]) => job[key] !== NONE).map(([key, icon]) => html`<span class="jtag">${icon} ${job[key]}</span>`);
+  return html`<div class="jobcard" data-id="${job.id}" data-prio="${job.prio}">
+    ${cardHead(job, folded)}
+    <div class="jt">${job.title}</div><div class="jc">${job.company}</div><div>${tags}<span class="dl-slot">${deadlineSlot(job)}</span></div>
+    ${folded ? "" : cardDetails(job)}
+    ${cardFoot(job, g)}
+  </div>`;
+}
+
+const CARD_TOOLS = ["jcol", "jedit", "jdel", "jcal"];
+
+// A redraw (a change from another device, a filter, folding a card) keeps the field the user is typing in, caret
+// included, or the card button the keyboard is on.
+function keepingFocus(draw) {
+  const board = byId("board"), el = document.activeElement;
+  const tool = el && CARD_TOOLS.find((c) => el.classList?.contains(c));
+  const field = el && board.contains(el) && el.dataset.id ? { id: el.dataset.id, k: el.dataset.k, tool, start: el.selectionStart, end: el.selectionEnd } : null;
+  draw();
+  const again = field && [...board.querySelectorAll(field.tool ? "." + field.tool : ".js-f")]
+    .find((x) => x.dataset.id === field.id && (field.tool || x.dataset.k === field.k));
+  if (!again) return;
+  again.focus({ preventScroll: true });
+  if (field.start != null) try { again.setSelectionRange(field.start, field.end); } catch (e) { /* a date field has no caret */ }
+}
+
+// The board holds a card for every vacancy; search and filters only show and hide cards (applyFilters), so a
+// keystroke never rebuilds hundreds of cards with their fields.
+function renderBoard() {
+  const jobs = allJobs(), g = gender();
+  const groups = PRIORITIES.map((prio) => [prio, jobs.filter((job) => job.prio === prio)]).filter(([, list]) => list.length);
+  keepingFocus(() => setHtml(byId("board"), jobs.length
+    ? html`${groups.map(([prio, list]) => html`<div class="gh" data-prio="${prio}">✦ ${prio} [<span class="gh-n">${list.length}</span>]</div>${list.map((job) => card(job, g))}`)}<div class="muted empty" hidden>Нічого не знайдено</div>`
+    : html`<div class="muted empty">Тут поки порожньо ✦ Встав посилання чи текст вакансії вгорі або додай її вручну, і вона зʼявиться тут.</div>`));
+  applyFilters();
+}
+
+function applyFilters() {
+  const board = byId("board");
+  if (!allJobs().length) return;
+  const shown = new Set(visibleJobs().map((job) => job.id)), perGroup = {};
+  for (const el of board.querySelectorAll(".jobcard")) {
+    el.hidden = !shown.has(el.dataset.id);
+    if (!el.hidden) perGroup[el.dataset.prio] = (perGroup[el.dataset.prio] || 0) + 1;
+  }
+  for (const head of board.querySelectorAll(".gh")) {
+    const n = perGroup[head.dataset.prio] || 0;
+    head.hidden = !n;
+    head.querySelector(".gh-n").textContent = n;
+  }
+  board.querySelector(".empty").hidden = shown.size > 0;
+}
+
+function refresh() {
+  fillFilters();
+  renderBoard();
+}
+
+// Both answer with a notice that can undo them for a few seconds; guests get it too.
+async function confirmRemove(id) {
+  const job = getJob(id);
+  if (!job || !(await confirmDialog("Видалити «" + job.company + " — " + job.title + "» зі списку?"))) return;
+  const removed = removeJob(id);
+  if (removed) toast("Вакансію прибрано ✦", { action: UNDO, onAction: () => restoreJob(removed) });
+}
+
+async function clearProgress() {
+  if (!(await confirmDialog("Обнулити всі статуси, дати й нотатки?"))) return;
+  const before = resetProgress();
+  toast("Чистий старт ✦ летимо спочатку!", { action: UNDO, onAction: () => restoreProgress(before), ms: 8000 });
+}
+
+// prio and status selects
+function onBoardChange(e) {
+  const el = e.target;
+  if (!el.matches("select.js-f")) return;
+  const { id, k } = el.dataset, value = el.value;
+  const from = el.getBoundingClientRect(); // the board is redrawn by the change below
+  setJobField(id, k, value);
+  if (k !== "status") return;
+  if (value === "offer") confetti(from.left + from.width / 2, from.top + from.height / 2);
+  reactToStatus(value);
+}
+
+// date, deadline and note; selects fire "input" too, so they are left to onBoardChange
+function onBoardInput(e) {
+  const el = e.target;
+  if (!el.matches("input.js-f, textarea.js-f")) return;
+  const job = setJobField(el.dataset.id, el.dataset.k, el.value);
+  // the card is not redrawn while the user types, so only its deadline badge follows
+  if (job && el.dataset.k === "deadline") setHtml(el.closest(".jobcard").querySelector(".dl-slot"), deadlineSlot(job));
+}
+
+function onBoardClick(e) {
+  const cal = e.target.closest(".jcal");
+  if (cal) { addToCalendar(cal.dataset.id); return; }
+  const btn = e.target.closest(".jtools button");
+  if (!btn) return;
+  const id = btn.dataset.id;
+  if (btn.classList.contains("jcol")) toggleCollapsed(id);
+  else if (btn.classList.contains("jedit")) openEditVacancy(id);
+  else if (btn.classList.contains("jdel")) confirmRemove(id);
+}
+
+/* ----- adding ----- */
+
+// The button stays disabled while its request runs, so one click sends one request.
+async function analyzeWith(button, payload) {
+  button.disabled = true;
+  try { return await analyzeVacancy(payload); } finally { button.disabled = false; }
+}
+
+const companyOr = (d) => (d.company && d.company !== NONE ? d.company : "вакансію");
+
+// Returns false when the vacancy is already listed.
+function addAnalyzed(d, url) {
+  if (!addJob({ ...d, url })) { setMsg("Ця вакансія вже у списку ✦"); return false; }
+  setMsg("Додано: " + companyOr(d) + " ✦");
+  return true;
+}
+
+// Many job sites block the server-side page fetch. The pasted-text route still works, so it opens
+// with the link already filled in.
+let offeredLink = "";   // that link: it belongs to the blocked vacancy only
+let offerOpen = false;  // the box is open for it, so the button the message names leads into the box
+function offerPaste(url) {
+  setMsg("Не вдалося відкрити сторінку (сайт міг заблокувати) ✦ Скопіюй текст вакансії й натисни «📋 Вставити текст вакансії».");
+  byId("a-paste-url").value = url;
+  byId("paste-box").hidden = false;
+  offeredLink = url;
+  offerOpen = true;
+}
+
+// Another vacancy is being added: the offered link leaves the paste box, unless it was changed or a text was
+// pasted for it meanwhile.
+function withdrawOffer() {
+  if (offeredLink && byId("a-paste-url").value.trim() === offeredLink && !byId("a-paste").value.trim()) byId("a-paste-url").value = "";
+  offeredLink = "";
+  offerOpen = false;
+}
+
+// the paste field takes the keyboard and comes into view without moving the desktop
+function focusPaste() {
+  byId("a-paste").focus({ preventScroll: true });
+  reveal(byId("a-paste"), { block: "nearest" });
+}
+
+function togglePasteBox() {
+  const box = byId("paste-box");
+  if (offerOpen && !box.hidden) { offerOpen = false; focusPaste(); return; }
+  offerOpen = false;
+  box.hidden = !box.hidden;
+  if (box.hidden) withdrawOffer();
+}
+
+// Clears a field after its vacancy was added, unless the user typed the next one there meanwhile.
+const clearIfStill = (id, value) => { if (byId(id).value.trim() === value) byId(id).value = ""; };
+
+async function addFromUrl() {
+  const typed = byId("add-url").value.trim();
+  if (!typed) { setMsg("Встав посилання ✦"); return; }
+  withdrawOffer();
+  const link = normalizeUrl(typed);
+  const url = link === "#" ? typed : link; // "site.com/job" is a link too; anything else the server explains
+  setMsg("Фея аналізує вакансію ✦...");
+  let d;
+  try {
+    d = await analyzeWith(byId("btn-url-add"), { url });
+  } catch (err) {
+    // the page could not be read: pasting its text still works; any other failure (busy, rate limit) says so itself
+    if (err.page) offerPaste(url); else setMsg(err.message);
+    return;
+  }
+  if (!addAnalyzed(d, url)) return;
+  clearIfStill("add-url", typed);
+  say("Проаналізувала й додала " + companyOr(d) + " ✦", POSE.happy, 7000);
+}
+
+async function addFromText() {
+  const text = byId("a-paste").value.trim();
+  if (text.length < MIN_VACANCY_TEXT) { setMsg("Встав більше тексту вакансії ✦"); return; }
+  const link = byId("a-paste-url").value.trim(); // the link that belongs to this text, whatever is typed meanwhile
+  setMsg("Фея аналізує текст ✦...");
+  let d;
+  try { d = await analyzeWith(byId("a-paste-go"), { text }); } catch (err) { setMsg("Не вдалося розібрати ✦ " + err.message); return; }
+  if (!addAnalyzed(d, link)) return;
+  const untouched = byId("a-paste").value.trim() === text;
+  clearIfStill("a-paste", text);
+  clearIfStill("a-paste-url", link);
+  if (link === offeredLink) { offeredLink = ""; offerOpen = false; }
+  if (untouched) byId("paste-box").hidden = true;
+  say("Розібрала текст і додала " + companyOr(d) + " ✦", POSE.happy, 7000);
+}
+
+// Without a CV the fairy has nothing to learn the user's profession from, so the vacancies they add stand in for it.
+function learnFromVacancy(job) {
+  if (!isAuthed() || persona.phrases.length || hasCV()) return;
+  const text = (job.title + " " + job.field + " " + job.company).trim();
+  persona.specialty = detectSpecialty(text);
+  analyzeProfile("Вакансія, яка цікавить кандидата: " + text)
+    .then((d) => {
+      if (hasCV()) return; // a CV arrived meanwhile and is the better source
+      if (d.phrases.length) persona.phrases = d.phrases;
+      if (d.role) persona.role = d.role;
+    })
+    .catch(() => { /* the fairy keeps her generic phrases; the next added vacancy tries again */ });
+}
+
+// A new status changes one card only (its link and deadline badge); the rest of the board stays as it is.
+function redrawCard(id) {
+  const old = [...byId("board").querySelectorAll(".jobcard")].find((el) => el.dataset.id === id), job = getJob(id);
+  if (!old || !job) { refresh(); return; }
+  keepingFocus(() => {
+    const holder = document.createElement("div");
+    setHtml(holder, card(job, gender()));
+    old.replaceWith(holder.firstElementChild);
+  });
+  applyFilters();
+}
+
+function onJobsChange({ type, id, key }) {
+  if (type === "add") learnFromVacancy(getJob(id));
+  if (type === "field" && key === "status") redrawCard(id);
+  else if (BOARD_CHANGES.includes(type) || (type === "field" && BOARD_FIELDS.includes(key))) refresh();
+}
+
+const short = (text, max = 60) => (text.length > max ? text.slice(0, max - 1) + "…" : text);
+const jobLabel = (job) => short(job.company !== NONE ? job.company + " — " + job.title : job.title);
+
+// When the app opens, the fairy points at the nearest deadline of the next few days.
+// The fairy's word for the day when the app opens or a new day begins: a near deadline, or else, once a day, an
+// application that waits for an answer long enough to remind the employer of it.
+export function remindToday() {
+  if (!remindDeadline()) remindFollowUp();
+}
+
+function remindFollowUp() {
+  const today = todayISO();
+  if (!isAuthed() || getRaw(KEYS.followUp) === today) return;
+  const [due] = followUpsDue(allJobs(), today);
+  if (!due) return;
+  setRaw(KEYS.followUp, today);
+  say("📨 " + daysText(due.days) + " тому ти " + gv("подалася", "подався", "подалися") + " на «" + jobLabel(due.job) + "», а відповіді ще нема ✦ саме час нагадати про себе!", POSE.idle, 10000);
+}
+
+// Returns true when it said something.
+function remindDeadline() {
+  const today = todayISO();
+  const next = allJobs()
+    .map((job) => ({ job, days: deadlineIn(job, today) }))
+    .filter(({ days }) => days !== null && days >= 0 && days <= DEADLINE_REMIND_DAYS)
+    .sort((a, b) => a.days - b.days)[0];
+  if (!next) return false;
+  const when = next.days === 0 ? "Сьогодні" : next.days === 1 ? "Завтра" : "За " + daysText(next.days);
+  say("⏳ " + when + " дедлайн: «" + jobLabel(next.job) + "» ✦ не проґав!", POSE.idle, 10000);
+  return true;
+}
+
+const firstLink = (text) => (String(text || "").match(/https?:\/\/[^\s<>"']+/i) || [""])[0];
+
+// Another app can hand a vacancy over with a link: ?add=<vacancy url> (Балувана Валя), or ?url= / ?text= from
+// a phone's share sheet (site.webmanifest share_target). The link waits in the field; analysing it is one tap.
+export function takeSharedLink() {
+  const params = new URLSearchParams(window.location.search);
+  if (!["add", "url", "text"].some((name) => params.has(name))) return;
+  const add = normalizeUrl(params.get("add"));
+  const link = (add !== "#" && add) || firstLink(params.get("url")) || firstLink(params.get("text"));
+  window.history.replaceState(null, "", window.location.pathname + window.location.hash); // a reload must not bring it back
+  if (!link) {
+    // a vacancy shared as text: it waits in the paste box
+    const text = [params.get("title"), params.get("text")].filter(Boolean).join("\n").trim();
+    if (text.length < MIN_VACANCY_TEXT) return;
+    openWin("vacancies");
+    byId("paste-box").hidden = false;
+    byId("a-paste").value = text;
+    setMsg("Текст вакансії вже тут ✦ натисни «✦ Проаналізувати текст», і фея розбере вакансію.");
+    focusPaste();
+    return;
+  }
+  openWin("vacancies");
+  byId("add-url").value = link;
+  setMsg("Посилання вже тут ✦ натисни «✦ Аналіз», і фея розбере вакансію.");
+  byId("add-url").focus();
+}
+
+// "/" jumps to the search box while the vacancies window is in front. The key itself counts too: in the Ukrainian
+// layout it types "."
+function onShortcut(e) {
+  const slash = e.key === "/" || (e.code === "Slash" && !e.shiftKey);
+  if (!slash || e.ctrlKey || e.metaKey || e.altKey || !isFocused("vacancies") || document.querySelector(".overlay.open")) return;
+  if (e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable]")) return;
+  e.preventDefault();
+  byId("f-search").focus();
+}
+
+export function initVacancies() {
+  const board = byId("board");
+  board.addEventListener("change", onBoardChange);
+  board.addEventListener("input", onBoardInput);
+  board.addEventListener("click", onBoardClick);
+  for (const [id] of FILTERS) byId(id).addEventListener("change", applyFilters);
+  byId("f-search").addEventListener("input", applyFilters);
+  document.addEventListener("keydown", onShortcut);
+  byId("btn-reset").addEventListener("click", resetFilters);
+  byId("btn-clear").addEventListener("click", clearProgress);
+
+  byId("btn-url-add").addEventListener("click", addFromUrl);
+  byId("add-url").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !byId("btn-url-add").disabled) addFromUrl();
+  });
+  byId("btn-paste").addEventListener("click", togglePasteBox);
+  byId("a-paste-go").addEventListener("click", addFromText);
+  byId("btn-manual").addEventListener("click", () => { withdrawOffer(); openNewVacancy({}); });
+
+  // a cloud replace ("state") reaches this module as jobs {type: "reload"}, emitted by main.js after loadJobs()
+  on("jobs", onJobsChange);
+  on("user", refresh);
+  on("day", redrawDeadlines);
+  refresh();
+}

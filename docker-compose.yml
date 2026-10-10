@@ -1,0 +1,104 @@
+# docker compose up app                          dev server on http://localhost:8888 (mock AI without keys in .env)
+# docker compose run --rm test                   unit tests
+# docker compose --profile netlify run --rm netlify   offline Netlify build: bundles the functions with esbuild
+# FIREBASE_EMULATORS=1 docker compose --profile firebase up   app + Firebase Auth/Firestore emulators,
+#                                                  then open http://localhost:8888/ (emulator UI on :4000)
+# docker compose --profile e2e run --rm e2e        browser tests (Playwright): flows + layout on 19 devices
+name: jobdesk2000
+
+services:
+  app:
+    image: node:22-alpine
+    init: true
+    working_dir: /app
+    volumes:
+      - .:/app:ro
+    command: node scripts/dev-server.js
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8888"
+      FIREBASE_EMULATORS: ${FIREBASE_EMULATORS:-0}
+      FIREBASE_AUTH_EMULATOR_HOST: firebase:9099
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      # loopback only: with real keys in .env the server must not be reachable from the network
+      - "127.0.0.1:8888:8888"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8888/').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  test:
+    image: node:22-alpine
+    init: true
+    working_dir: /app
+    volumes:
+      - .:/app:ro
+    command: npm test
+    profiles: [test]
+
+  netlify:
+    image: node:22
+    init: true
+    working_dir: /app
+    volumes:
+      - .:/app
+      - npm-cache:/root/.npm
+    environment:
+      # CI mode: netlify-cli asks no questions and sends no telemetry
+      CI: "true"
+    # a failed require inside netlify/ fails the esbuild step, so a green build proves the bundles resolve
+    command: sh -c "npx --yes netlify-cli@27.8.1 build --offline && ls -l .netlify/functions"
+    profiles: [netlify]
+
+  firebase:
+    build: docker/firebase
+    init: true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:9099/').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    volumes:
+      - ./firebase.json:/app/firebase.json:ro
+      - ./firestore.rules:/app/firestore.rules:ro
+    ports:
+      # the browser talks to the emulators directly, so they are published on loopback
+      - "127.0.0.1:4000:4000"
+      - "127.0.0.1:8086:8086"
+      - "127.0.0.1:9099:9099"
+    profiles: [firebase, e2e]
+
+  # The browser tests start their own dev server inside this container (AI mock + emulators), so the app is on
+  # localhost there: a secure context, like production over https (clipboard, IndexedDB).
+  e2e:
+    image: mcr.microsoft.com/playwright:v1.63.0-noble
+    init: true
+    working_dir: /app/e2e
+    shm_size: 1gb
+    volumes:
+      - .:/app
+      - e2e-node-modules:/app/e2e/node_modules
+    environment:
+      CI: "true"
+      E2E_START_SERVER: "1"
+      MOCK_AI: "1"
+      FIREBASE_EMULATORS: "1"
+      FIREBASE_EMULATOR_BROWSER_HOST: firebase
+      FIREBASE_AUTH_EMULATOR_HOST: firebase:9099
+      E2E_ARGS: ${E2E_ARGS:-}
+      E2E_WORKERS: ${E2E_WORKERS:-}
+    command: sh -c "npm install --no-audit --no-fund --loglevel=error && npx playwright test $${E2E_ARGS:-}"
+    depends_on:
+      firebase:
+        condition: service_healthy
+    profiles: [e2e]
+
+volumes:
+  npm-cache:
+  e2e-node-modules:

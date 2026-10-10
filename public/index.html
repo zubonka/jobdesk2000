@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="uk" class="theme-light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JobDesk 2000 OS: Y2K-трекер пошуку роботи з феєю-помічницею</title>
+<meta name="description" content="Персональний робочий стіл для пошуку роботи: трекай вакансії за статусами, веди нотатки й дати, дивись статистику. Фея-помічниця пише cover letter за твоїм резюме.">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="author" content="Elizabeth Zubenko">
+<meta name="application-name" content="JobDesk 2000">
+<meta name="apple-mobile-web-app-title" content="JobDesk 2000">
+<meta name="theme-color" content="#7d6bc4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a0e38" media="(prefers-color-scheme: dark)">
+<link rel="canonical" href="https://jobdeck2000.netlify.app/">
+<link rel="alternate" hreflang="uk" href="https://jobdeck2000.netlify.app/">
+<link rel="alternate" hreflang="x-default" href="https://jobdeck2000.netlify.app/">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JobDesk 2000">
+<meta property="og:locale" content="uk_UA">
+<meta property="og:url" content="https://jobdeck2000.netlify.app/">
+<meta property="og:title" content="JobDesk 2000 OS: Y2K-трекер пошуку роботи з феєю-помічницею">
+<meta property="og:description" content="Трекай вакансії за статусами, веди нотатки й дати, дивись статистику. Фея-помічниця пише cover letter за твоїм резюме.">
+<meta property="og:image" content="https://jobdeck2000.netlify.app/assets/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Робочий стіл JobDesk 2000 у стилі Y2K з вікном вакансій і феєю-помічницею">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="JobDesk 2000 OS: Y2K-трекер пошуку роботи з феєю-помічницею">
+<meta name="twitter:description" content="Трекай вакансії, статуси й нотатки. Фея-помічниця пише cover letter за твоїм резюме.">
+<meta name="twitter:image" content="https://jobdeck2000.netlify.app/assets/og-image.png">
+
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" href="assets/icons/app-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="assets/icons/app-180.png">
+<link rel="manifest" href="site.webmanifest">
+
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preload" href="assets/fonts/vt323-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/app.css">
+<script>try{var h=document.documentElement;if(localStorage.getItem('jobdesk2000_theme')==='dark')h.className='theme-dark';if(localStorage.getItem('jobdesk2000_welcomed')!=='1'&&!localStorage.getItem('jobdesk2000_user_v1'))h.classList.add('first-visit')}catch(e){}</script>
+<script type="module" src="js/main.js"></script>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://jobdeck2000.netlify.app/#website",
+      "url": "https://jobdeck2000.netlify.app/",
+      "name": "JobDesk 2000",
+      "inLanguage": "uk",
+      "publisher": { "@id": "https://jobdeck2000.netlify.app/#author" }
+    },
+    {
+      "@type": "WebApplication",
+      "@id": "https://jobdeck2000.netlify.app/#app",
+      "name": "JobDesk 2000",
+      "alternateName": "JobDesk 2000 OS",
+      "url": "https://jobdeck2000.netlify.app/",
+      "description": "Персональний робочий стіл для пошуку роботи: трекай вакансії за статусами, веди нотатки й дати, дивись статистику. Фея-помічниця пише cover letter за твоїм резюме.",
+      "applicationCategory": "BusinessApplication",
+      "applicationSubCategory": "Трекер пошуку роботи",
+      "operatingSystem": "Web",
+      "browserRequirements": "Потрібен сучасний браузер з увімкненим JavaScript",
+      "inLanguage": "uk",
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "UAH" },
+      "image": "https://jobdeck2000.netlify.app/assets/og-image.png",
+      "screenshot": "https://jobdeck2000.netlify.app/assets/og-image.png",
+      "featureList": [
+        "Збирай вакансії: встав посилання або текст, фея сама розбере компанію, посаду й зарплату",
+        "Стеж за статусами: подалася, співбесіда, оффер, а статистика рахується сама",
+        "Пиши cover letter: завантаж резюме, і фея складе лист під кожну вакансію",
+        "Обери й розфарбуй фею-помічницю"
+      ],
+      "author": { "@id": "https://jobdeck2000.netlify.app/#author" },
+      "isPartOf": { "@id": "https://jobdeck2000.netlify.app/#website" }
+    },
+    {
+      "@type": "Person",
+      "@id": "https://jobdeck2000.netlify.app/#author",
+      "name": "Elizabeth Zubenko",
+      "jobTitle": "Графічна дизайнерка та ілюстраторка",
+      "homeLocation": { "@type": "Place", "name": "Одеса, Україна" },
+      "image": "https://jobdeck2000.netlify.app/assets/author.jpg",
+      "sameAs": ["https://www.instagram.com/zubonka/", "https://www.linkedin.com/in/elizabeth-zubenko/"]
+    }
+  ]
+}
+</script>
+</head>
+<body>
+<h1 class="sr-only">JobDesk 2000: Y2K desktop-трекер пошуку роботи з феєю-помічницею</h1>
+<noscript>
+  <div class="noscript">
+    <p>JobDesk 2000 — це персональний робочий стіл для пошуку роботи: трекай вакансії за статусами, веди нотатки й дати, дивись статистику. А фея-помічниця пише персональні cover letter на основі твого резюме та підбадьорює на кожному кроці ✦</p>
+  </div>
+</noscript>
+
+<main id="desktop">
+  <div id="wall-layer"></div><div id="wall-vig"></div>
+  <nav id="icons" aria-label="Робочий стіл">
+    <button type="button" class="ui d-icon" data-open="messenger"><span class="glyph"><img src="assets/icons/messenger.png" alt="" width="64" height="64"></span><span class="lbl">Фейрі месенджер</span></button>
+    <button type="button" class="ui d-icon" data-open="stats"><span class="glyph"><img src="assets/icons/stats.png" alt="" width="64" height="64"></span><span class="lbl">Статистика</span></button>
+    <button type="button" class="ui d-icon" data-open="vacancies"><span class="glyph"><img src="assets/icons/vacancies.png" alt="" width="64" height="64"></span><span class="lbl">Вакансії</span></button>
+    <button type="button" class="ui d-icon" data-open="fairy"><span class="glyph"><img src="assets/icons/fairy.png" alt="" width="64" height="64"></span><span class="lbl">Моя Фея</span></button>
+    <button type="button" class="ui d-icon" data-open="about"><span class="glyph"><img src="assets/icons/about.png" alt="" width="64" height="64"></span><span class="lbl">Про застосунок</span></button>
+    <button type="button" class="ui d-icon" data-open="valya"><span class="glyph"><img src="assets/icons/valya.png" alt="" width="64" height="64"></span><span class="lbl">Балувана Валя</span></button>
+    <button type="button" class="ui d-icon" data-open="readme"><span class="glyph"><img src="assets/icons/readme.png" alt="" width="64" height="64"></span><span class="lbl">README.TXT</span></button>
+  </nav>
+
+  <div id="tilewrap"></div>
+
+  <!-- MESSENGER -->
+  <section class="win" id="win-messenger" data-app="messenger" aria-labelledby="ti-messenger">
+    <div class="win-head"><span class="ic"></span><span class="ti" id="ti-messenger"><img class="ti-icon" src="assets/icons/messenger.png" alt="">Фейрі месенджер — Cover Letter</span>
+      <span class="win-btns"><button type="button" class="ui win-btn" data-min="messenger" aria-label="Згорнути">_</button><button type="button" class="ui win-btn close" data-close="messenger" aria-label="Закрити">✕</button></span></div>
+    <div class="win-body">
+      <div class="msg-intro">
+        <div id="msg-fairy"></div>
+        <div class="muted" id="say">Привіт! ✦ Завантаж резюме (PDF), обери вакансію, мову й тон — і я напишу cover letter.</div>
+      </div>
+      <div class="cv-zone" id="cv-zone">
+        <span class="cv-ico">📄</span>
+        <div class="muted cv-txt" id="cv-txt"><b class="ink">Резюме не завантажено.</b> Завантаж CV у PDF.</div>
+        <input type="file" id="cv-file" accept="application/pdf,.pdf" hidden>
+        <button type="button" class="btn ghost" id="cv-upload">Завантажити PDF</button>
+        <button type="button" class="btn ghost sm" id="cv-paste-toggle">📋 Вставити текст</button>
+        <button type="button" class="btn ghost sm" id="cv-remove" hidden>прибрати</button>
+        <div class="cv-paste" id="cv-paste-box" hidden>
+          <textarea id="cv-paste" class="full" rows="5" placeholder="Встав сюди текст резюме ✦" aria-label="Текст резюме"></textarea>
+          <button type="button" class="btn full mt6" id="cv-paste-save">✦ Зберегти резюме</button>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="span-all"><label class="fl" for="cl-job">Вакансія</label><select id="cl-job" class="full"></select></div>
+        <div><label class="fl" for="cl-lang">Мова</label><select id="cl-lang" class="full"><option value="Ukrainian">Українська</option><option value="English">English</option></select></div>
+        <div><label class="fl" for="cl-tone">Тон</label><select id="cl-tone" class="full"><option value="warm, confident, professional">Теплий</option><option value="concise and punchy">Короткий</option><option value="creative and expressive">Креативний</option><option value="formal and classic">Формальний</option></select></div>
+        <div class="span-all"><label class="fl" for="cl-focus">Підкреслити (необов'язково)</label><input type="text" id="cl-focus" class="full" placeholder="напр. досвід у showbiz, AI..."></div>
+      </div>
+      <div class="row mb8"><button type="button" class="btn" id="cl-gen">✦ Написати листа</button></div>
+      <div class="muted msg" id="cl-status" aria-live="polite"></div>
+      <div id="cl-out" class="chat-log">Тут зʼявиться діалог із феєю ✦</div>
+      <div id="cl-editrow" hidden>
+        <input type="text" id="cl-edit" class="grow" placeholder="напр. зроби коротшим, додай про AI-досвід, більше запалу..." aria-label="Правка листа">
+        <button type="button" class="btn" id="cl-send" aria-label="Надіслати">➤</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <section class="win" id="win-stats" data-app="stats" aria-labelledby="ti-stats">
+    <div class="win-head"><span class="ic"></span><span class="ti" id="ti-stats"><img class="ti-icon" src="assets/icons/stats.png" alt="">Статистика</span>
+      <span class="win-btns"><button type="button" class="ui win-btn" data-min="stats" aria-label="Згорнути">_</button><button type="button" class="ui win-btn close" data-close="stats" aria-label="Закрити">✕</button></span></div>
+    <div class="win-body">
+      <div class="stat-grid">
+        <div class="stat-c"><div class="fl">Всього</div><div class="stat-v c-accent" id="s-total">0</div></div>
+        <div class="stat-c"><div class="fl">Подано</div><div class="stat-v c-lav" id="s-applied">0</div></div>
+        <div class="stat-c"><div class="fl">Співбесіди</div><div class="stat-v c-warn" id="s-inter">0</div></div>
+        <div class="stat-c"><div class="fl">Тестові</div><div class="stat-v c-warn" id="s-test">0</div></div>
+        <div class="stat-c"><div class="fl">Оффери</div><div class="stat-v c-mint" id="s-offer">0</div></div>
+        <div class="stat-c"><div class="fl">Відмови</div><div class="stat-v c-pink" id="s-reject">0</div></div>
+      </div>
+      <div class="pipeline"><div class="fl">Пайплайн</div><div id="prog" class="prog"></div></div>
+      <div class="funnel"><div class="fl">Воронка</div><div id="funnel"></div></div>
+      <div class="weeks"><div class="fl">Подачі за 8 тижнів</div><div id="weeks" class="weeks-chart" role="img"></div><div class="muted weeks-note" id="weeks-note"></div></div>
+    </div>
+  </section>
+
+  <!-- VACANCIES -->
+  <section class="win" id="win-vacancies" data-app="vacancies" aria-labelledby="ti-vacancies">
+    <div class="win-head"><span class="ic"></span><span class="ti" id="ti-vacancies"><img class="ti-icon" src="assets/icons/vacancies.png" alt="">Вакансії</span>
+      <span class="win-btns"><button type="button" class="ui win-btn" data-min="vacancies" aria-label="Згорнути">_</button><button type="button" class="ui win-btn close" data-close="vacancies" aria-label="Закрити">✕</button></span></div>
+    <div class="win-body">
+      <div class="add-box">
+        <div class="row wrap g6">
+          <input type="url" id="add-url" placeholder="Встав посилання на вакансію — фея проаналізує..." aria-label="Посилання на вакансію">
+          <button type="button" class="btn" id="btn-url-add">✦ Аналіз</button>
+        </div>
+        <div class="row g6 mt6">
+          <button type="button" class="btn ghost sm grow" id="btn-paste">📋 Вставити текст вакансії</button>
+          <button type="button" class="btn ghost sm grow" id="btn-manual">✏️ Додати вручну</button>
+        </div>
+        <div id="paste-box" class="mt8" hidden>
+          <textarea id="a-paste" class="full" rows="5" placeholder="Скопіюй і встав сюди весь текст вакансії — фея сама визначить компанію, посаду, зарплату тощо ✦" aria-label="Текст вакансії"></textarea>
+          <input type="url" id="a-paste-url" class="full mt6" placeholder="Посилання на вакансію (щоб потім перейти й податися)" aria-label="Посилання на вакансію">
+          <button type="button" class="btn full mt6" id="a-paste-go">✦ Проаналізувати текст</button>
+        </div>
+        <div id="add-url-msg" class="muted msg mt6" aria-live="polite"></div>
+      </div>
+      <div class="filters">
+        <input type="search" id="f-search" class="f-search" placeholder="🔍 Пошук: посада, компанія, нотатки..." title="Клавіша / відкриває пошук" aria-label="Пошук вакансій" autocomplete="off">
+        <select id="f-prio" aria-label="Пріоритет"><option value="">Всі пріоритети</option><option>100% Податися</option><option>Податися</option><option>Подумати</option></select>
+        <select id="f-field" aria-label="Галузь"></select>
+        <select id="f-emp" aria-label="Зайнятість"></select>
+        <select id="f-status" aria-label="Статус"></select>
+        <button type="button" class="btn ghost sm" id="btn-reset">Скинути</button>
+        <button type="button" class="btn ghost sm" id="btn-clear">Reset</button>
+      </div>
+      <div id="board"></div>
+    </div>
+  </section>
+
+  <!-- MY FAIRY -->
+  <section class="win" id="win-fairy" data-app="fairy" aria-labelledby="ti-fairy">
+    <div class="win-head"><span class="ic"></span><span class="ti" id="ti-fairy"><img class="ti-icon" src="assets/icons/fairy.png" alt="">Моя Фея Технологій</span>
+      <span class="win-btns"><button type="button" class="ui win-btn" data-min="fairy" aria-label="Згорнути">_</button><button type="button" class="ui win-btn close" data-close="fairy" aria-label="Закрити">✕</button></span></div>
+    <div class="win-body">
+      <div class="fairy-layout">
+        <div class="fairy-side">
+          <div id="fairy-preview"></div>
+        </div>
+        <div class="fairy-main">
+          <h3 class="wh" id="fairy-hello">Обери свою фею ✦</h3>
+          <label class="fl">Тип феї</label>
+          <div class="type-row">
+            <button type="button" class="ui type-btn" data-type="type1"><span id="tb1"></span>Іскра</button>
+            <button type="button" class="ui type-btn" data-type="type2"><span id="tb2"></span>Літа</button>
+          </div>
+          <label class="fl" for="fairy-name">Ім'я феї</label>
+          <input type="text" id="fairy-name" class="full" placeholder="напр. Піксі, Блум..." maxlength="24">
+          <div class="zone-grid">
+            <div class="zone-row"><span class="zl">Волосся</span><label class="pal-btn big" title="Волосся, лінії, рот"><span>🎨</span><input type="color" id="cc-hair" aria-label="Волосся"></label></div>
+            <div class="zone-row"><span class="zl">Крила</span><label class="pal-btn big" title="Крила"><span>🎨</span><input type="color" id="cc-wing" aria-label="Крила"></label></div>
+            <div class="zone-row"><span class="zl">Лінії на крилах</span><label class="pal-btn big" title="Лінії на крилах"><span>🎨</span><input type="color" id="cc-wingline" aria-label="Лінії на крилах"></label></div>
+            <div class="zone-row"><span class="zl">Сукня</span><label class="pal-btn big" title="Сукня"><span>🎨</span><input type="color" id="cc-dress" aria-label="Сукня"></label></div>
+            <div class="zone-row"><span class="zl">Дрібнички</span><label class="pal-btn big" title="Чоботи, пояс, квіточка, зірка"><span>🎨</span><input type="color" id="cc-trink" aria-label="Дрібнички"></label></div>
+          </div>
+          <div class="row wrap mt12"><button type="button" class="btn" id="fairy-save">✦ Зберегти фею</button><button type="button" class="btn ghost" id="fairy-random">🎲 Випадково</button><button type="button" class="btn ghost" id="fairy-match" title="Підібрати кольори феї під фон">🖼 Під фон</button></div>
+          <div class="wall-box">
+            <label class="fl">Фон робочого столу (ефект «старий телевізор»)</label>
+            <input type="file" id="wall-file" accept="image/*" hidden>
+            <div class="row wrap center">
+              <button type="button" class="btn ghost" id="wall-upload">📺 Завантажити фон</button>
+              <button type="button" class="btn ghost sm" id="wall-remove" hidden>прибрати фон</button>
+            </div>
+            <div class="muted wall-note">Твоє зображення ляже на робочий стіл із глітч-ефектом ✦ Кнопкою «🖼 Під фон» у налаштуваннях феї можна підібрати кольори феї під картинку.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ABOUT -->
+  <section class="win" id="win-about" data-app="about" aria-labelledby="ti-about">
+    <div class="win-head"><span class="ic"></span><span class="ti" id="ti-about"><img class="ti-icon" src="assets/icons/about.png" alt="">Про застосунок</span>
+      <span class="win-btns"><button type="button" class="ui win-btn" data-min="about" aria-label="Згорнути">_</button><button type="button" class="ui win-btn close" data-close="about" aria-label="Закрити">✕</button></span></div>
+    <div class="win-body">
+      <div class="app-head">
+        <div class="app-photo"><img src="assets/author.jpg" alt="Авторка JobDesk 2000" width="240" height="240" loading="lazy"></div>
+        <div><div class="app-name">JobDesk 2000</div><div class="muted">Y2K desktop-трекер пошуку роботи з феєю-помічницею ✦</div></div>
+      </div>
+      <h3 class="wh h17">Про застосунок</h3>
+      <p class="text">JobDesk 2000 — це персональний робочий стіл для пошуку роботи: трекай вакансії за статусами, веди нотатки й дати, дивись статистику. А фея-помічниця пише персональні cover letter на основі твого резюме та підбадьорює на кожному кроці ✦</p>
+      <h3 class="wh h17">Про авторку</h3>
+      <p class="text" id="about-bio">Привіт! Я графічна дизайнерка та ілюстраторка з Одеси. Люблю Y2K-естетику, музику й діджитал-арт. Цей застосунок — мій pet-проєкт про пошук роботи з дрібкою магії ✦</p>
+      <div class="socials">
+        <a href="https://www.instagram.com/zubonka/" target="_blank" rel="noopener" title="Instagram" class="soc-ic" aria-label="Instagram">
+          <svg width="34" height="34" viewBox="0 0 16 16" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="0" fill="#E4405F"/><rect x="3" y="3" width="10" height="10" fill="#F77737"/><rect x="4" y="4" width="8" height="8" fill="#fff"/><rect x="5" y="5" width="6" height="6" fill="#E4405F"/><rect x="6" y="6" width="4" height="4" fill="#fff"/><rect x="11" y="4" width="1" height="1" fill="#E4405F"/></svg>
+        </a>
+        <a href="https://www.linkedin.com/in/elizabeth-zubenko/" target="_blank" rel="noopener" title="LinkedIn" class="soc-ic" aria-label="LinkedIn">
+          <svg width="34" height="34" viewBox="0 0 16 16" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="2" width="12" height="12" fill="#0A66C2"/><rect x="4" y="6" width="2" height="6" fill="#fff"/><rect x="4" y="4" width="2" height="2" fill="#fff"/><rect x="8" y="6" width="2" height="6" fill="#fff"/><rect x="10" y="7" width="2" height="5" fill="#fff"/><rect x="9" y="6" width="2" height="1" fill="#fff"/></svg>
+        </a>
+        <a href="mailto:elizabeth.zubenko@gmail.com" title="Пошта" class="soc-ic" aria-label="Пошта">
+          <svg width="34" height="34" viewBox="0 0 16 16" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="4" width="12" height="8" fill="#8142FF"/><rect x="2" y="4" width="12" height="1" fill="#a06bff"/><rect x="3" y="5" width="1" height="1" fill="#fff"/><rect x="12" y="5" width="1" height="1" fill="#fff"/><rect x="4" y="6" width="1" height="1" fill="#fff"/><rect x="11" y="6" width="1" height="1" fill="#fff"/><rect x="5" y="7" width="1" height="1" fill="#fff"/><rect x="10" y="7" width="1" height="1" fill="#fff"/><rect x="6" y="8" width="4" height="1" fill="#fff"/></svg>
+        </a>
+        <a href="mailto:elizabeth.zubenko@gmail.com" class="mail-link">elizabeth.zubenko@gmail.com</a>
+      </div>
+      <h3 class="wh h17">Умови</h3>
+      <p class="muted terms">Реєстрація (пошта / Google) працює через <b>Firebase Authentication</b> — зберігається лише твоя пошта та імʼя для входу. Усе інше — вакансії, нотатки, фея, налаштування — зберігається <b>локально у твоєму браузері</b> й нікуди не надсилається (тому дані привʼязані до цього пристрою). Текст резюме, який ти завантажуєш, і запити на листи обробляються через <b>Google Gemini</b> задля генерації. Застосунок безкоштовний і створений для особистого користування ✦</p>
+    </div>
+  </section>
+
+  <!-- README.TXT: how everything works -->
+  <section class="win" id="win-readme" data-app="readme" aria-labelledby="ti-readme">
+    <div class="win-head"><span class="ic"></span><span class="ti" id="ti-readme"><img class="ti-icon" src="assets/icons/readme.png" alt="">README.TXT - Блокнот</span>
+      <span class="win-btns"><button type="button" class="ui win-btn" data-min="readme" aria-label="Згорнути">_</button><button type="button" class="ui win-btn close" data-close="readme" aria-label="Закрити">✕</button></span></div>
+    <div class="win-body notepad">
+      <article class="readme" tabindex="0" aria-labelledby="ti-readme">
+        <h2 class="readme-title">README.TXT ✦ як тут усе влаштовано</h2>
+        <h3>1. Вакансії 💼</h3>
+        <ul>
+          <li>Встав посилання на вакансію й натисни «✦ Аналіз»: фея сама розбере компанію, посаду, зарплату й формат роботи.</li>
+          <li>Деякі сайти не пускають фею. Тоді відкрий вакансію, скопіюй увесь текст і натисни «📋 Вставити текст вакансії».</li>
+          <li>Або заповни все сам(а): «✏️ Додати вручну».</li>
+        </ul>
+        <h3>2. Статуси й дедлайни 📊</h3>
+        <ul>
+          <li>Став статус на картці: подача, співбесіда, тестове, оффер. Дата подачі поставиться сама, а «Статистика» все порахує.</li>
+          <li>Впиши ⏳ дедлайн: за два тижні до нього на картці зʼявиться позначка, а за три дні нагадає фея.</li>
+          <li>Кнопка «📅 у календар» збереже дедлайн подією для телефона чи компʼютера, з нагадуванням напередодні.</li>
+          <li>Якщо після подачі минув тиждень, а відповіді нема, фея підкаже нагадати про себе (раз на день).</li>
+          <li>🔍 Пошук знаходить вакансію за посадою, компанією чи нотатками (на компʼютері досить натиснути /).</li>
+        </ul>
+        <h3>3. Cover letter ✉️</h3>
+        <ul>
+          <li>Потрібен акаунт. У «Фейрі месенджері» завантаж резюме (PDF) або встав його текстом.</li>
+          <li>Обери вакансію, мову й тон і натисни «✦ Написати листа»: лист пишеться саме за цією кнопкою.</li>
+          <li>Далі пиши феї в чат, що змінити: «коротше», «більше про брендинг», «тепліше».</li>
+          <li>Якщо фея зайнята, вона сама спробує ще раз за кілька секунд.</li>
+        </ul>
+        <h3>4. Акаунт і хмара 👤</h3>
+        <ul>
+          <li>Гостем усе зберігається лише в цьому браузері.</li>
+          <li>З акаунтом (пошта або Google) вакансії, нотатки, резюме, фея й фон синхронізуються між твоїми пристроями, навіть якщо щось змінилося без інтернету.</li>
+          <li>На чужому пристрої виходь з акаунта: дані акаунта зникнуть звідти, а в хмарі лишаться.</li>
+        </ul>
+        <h3>5. Копія даних 💾</h3>
+        <ul>
+          <li>START → «💾 Зберегти копію даних» скачає файл з вакансіями, нотатками й феєю, а «📂 Відновити з копії» поверне їх на будь-якому пристрої.</li>
+          <li>«📊 Вакансії в таблицю (CSV)» відкривається в Excel чи Google Таблицях.</li>
+        </ul>
+        <h3>6. Дрібнички ✦</h3>
+        <ul>
+          <li>Видалено вакансію чи натиснуто Reset випадково? Тисни «↶ Повернути» в повідомленні внизу.</li>
+          <li>▦ розкладає вікна сіткою, ☀️ / 🌙 перемикає тему, Esc закриває діалог, а ярлики на робочому столі можна перетягувати.</li>
+          <li>У «Моїй Феї» обери й розфарбуй фею та постав свій фон робочого столу.</li>
+        </ul>
+      </article>
+      <div class="notepad-status" aria-hidden="true"><span>Рядок 1, стовп. 1</span><span>UTF-8 ✦</span></div>
+    </div>
+  </section>
+
+  <!-- BALUVANA VALYA -->
+  <section class="win" id="win-valya" data-app="valya" aria-labelledby="ti-valya">
+    <div class="win-head"><span class="ic"></span><span class="ti" id="ti-valya"><img class="ti-icon" src="assets/icons/valya.png" alt="">Балувана Валя</span>
+      <span class="win-btns"><button type="button" class="ui win-btn" data-min="valya" aria-label="Згорнути">_</button><button type="button" class="ui win-btn close" data-close="valya" aria-label="Закрити">✕</button></span></div>
+    <div class="win-body">
+      <div class="app-head">
+        <div class="app-logo"><img src="assets/icons/valya.png" alt="Балувана Валя" width="64" height="64"></div>
+        <div><div class="app-name sm">Балувана Валя</div><div class="muted">ШІ-аналізатор резюме та вакансій ✦</div></div>
+      </div>
+      <p class="text">Безкоштовний ШІ-сервіс, який перевіряє резюме, знаходить «red flags» у вакансіях і показує, що саме довчити для оферу. Результат — за 30 секунд ✦</p>
+      <h3 class="wh h16">Що вміє</h3>
+      <ul class="feature-list">
+        <li><b>Перевірка сумісності</b> — наскільки ти підходиш під вакансію і що переписати</li>
+        <li><b>Аудит резюме</b> — що підсилити, а що прибрати</li>
+        <li><b>Аналіз вакансії</b> — приховані ризики й гострі питання для співбесіди</li>
+        <li><b>Резюме з нуля</b> та окремий режим <b>для ветеранів</b></li>
+      </ul>
+      <p class="muted note">Проєкт мого брата ✦ Ідеально доповнює JobDesk 2000: тут ти трекаєш вакансії, а Валя допомагає відшліфувати резюме під кожну з них.</p>
+      <a class="btn" href="https://baluvana-valya.biz.ua/" target="_blank" rel="noopener">✦ Відкрити Балувану Валю ↗</a>
+    </div>
+  </section>
+</main>
+
+<!-- CLIPPY -->
+<aside id="clippy" aria-live="polite"><div class="bubble"><button type="button" class="ui cx" id="clippy-x" aria-label="Закрити">✕</button><span id="clippy-say"></span></div><div id="clippy-fairy"></div></aside>
+
+<!-- toasts: short notices above the taskbar -->
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<!-- CONFIRM (replaces the browser's confirm()) -->
+<div id="confirm-overlay" class="overlay" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+  <div class="win open dialog">
+    <div class="win-head"><span class="ic"></span><span class="ti" id="confirm-title">✦ JobDesk 2000</span><span class="win-btns"><button type="button" class="ui win-btn close" id="confirm-close" aria-label="Закрити">✕</button></span></div>
+    <div class="win-body center">
+      <div id="confirm-fairy"></div>
+      <p class="confirm-text" id="confirm-text"></p>
+      <div class="row">
+        <button type="button" class="btn ghost grow" id="confirm-cancel">Скасувати</button>
+        <button type="button" class="btn grow" id="confirm-ok">Так</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AUTH -->
+<div id="auth-overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+  <div class="win open dialog">
+    <div class="win-head"><span class="ic"></span><span class="ti" id="auth-title">✦ Вхід</span><span class="win-btns"><button type="button" class="ui win-btn close" id="auth-close" aria-label="Закрити">✕</button></span></div>
+    <div class="win-body">
+      <form id="auth-form" novalidate>
+        <div class="auth-tabs">
+          <button type="button" class="ui auth-tab sel" data-tab="login">Увійти</button>
+          <button type="button" class="ui auth-tab" data-tab="register">Зареєструватися</button>
+        </div>
+        <p class="muted mb12" id="auth-sub">Увійди, щоб фея писала листи й памʼятала твої вакансії ✦</p>
+        <button type="button" class="btn google full mb10" id="auth-google">🔵 Продовжити з Google</button>
+        <div class="muted auth-or">— або поштою —</div>
+        <div id="reg-only" hidden>
+          <label class="fl" for="auth-name">Ім'я *</label>
+          <input type="text" id="auth-name" class="auth-field" placeholder="Як тебе звати?" maxlength="30" autocomplete="name">
+        </div>
+        <label class="fl" for="auth-email">Пошта *</label>
+        <input type="email" id="auth-email" class="auth-field" placeholder="you@email.com" autocomplete="email">
+        <label class="fl" for="auth-pass">Пароль *</label>
+        <input type="password" id="auth-pass" class="auth-field" placeholder="мінімум 6 символів" autocomplete="current-password">
+        <div id="reg-gender" hidden>
+          <label class="fl">Звертатися до тебе *</label>
+          <div class="gender-row">
+            <button type="button" class="ui gender-btn" data-g="f">жіночий рід<br><span class="muted">«подалася»</span></button>
+            <button type="button" class="ui gender-btn" data-g="m">чоловічий рід<br><span class="muted">«подався»</span></button>
+            <button type="button" class="ui gender-btn" data-g="n">небінарна особа<br><span class="muted">«подалися»/вони</span></button>
+          </div>
+        </div>
+        <div id="auth-msg" class="muted msg auth-msg" aria-live="polite"></div>
+        <button type="submit" class="btn full" id="auth-submit">✦ Увійти</button>
+        <button type="button" class="ui muted auth-forgot" id="auth-forgot">Забув(ла) пароль?</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT VACANCY -->
+<div id="edit-overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="edit-title">
+  <div class="win open dialog">
+    <div class="win-head"><span class="ic"></span><span class="ti" id="edit-title">✏️ Редагувати вакансію</span><span class="win-btns"><button type="button" class="ui win-btn close" id="edit-close" aria-label="Закрити">✕</button></span></div>
+    <div class="win-body">
+      <div class="edit-ai">
+        <label class="fl" for="ev-paste">🪄 Онови через ШІ — встав новий текст вакансії</label>
+        <textarea id="ev-paste" class="full" rows="3" placeholder="Встав текст — фея перезаповнить поля нижче ✦"></textarea>
+        <button type="button" class="btn ghost sm full mt6" id="ev-analyze">✦ Проаналізувати й заповнити</button>
+      </div>
+      <label class="fl" for="ev-title">Посада</label>
+      <input type="text" id="ev-title" class="edit-field" placeholder="напр. Graphic Designer">
+      <label class="fl" for="ev-company">Компанія</label>
+      <input type="text" id="ev-company" class="edit-field" placeholder="назва компанії">
+      <div class="row">
+        <div class="grow"><label class="fl" for="ev-field">Галузь</label><input type="text" id="ev-field" class="edit-field"></div>
+        <div class="grow"><label class="fl" for="ev-salary">Зарплата</label><input type="text" id="ev-salary" class="edit-field"></div>
+      </div>
+      <div class="row">
+        <div class="grow"><label class="fl" for="ev-emp">Зайнятість</label><select id="ev-emp" class="edit-field"><option value="">—</option><option>Full-time</option><option>Part-time</option><option>Project / Контракт</option><option>Стажування</option><option>Freelance</option><option>Outsource</option></select></div>
+        <div class="grow"><label class="fl" for="ev-loc">Формат / локація</label>
+          <select id="ev-loc" class="edit-field"><option value="">—</option><option>Віддалено</option><option>Гібрид</option><option>Офіс</option></select>
+        </div>
+      </div>
+      <label class="fl" for="ev-url">Посилання</label>
+      <input type="url" id="ev-url" class="edit-field" placeholder="https://...">
+      <label class="fl" for="ev-prio">Пріоритет</label>
+      <select id="ev-prio" class="full"><option>100% Податися</option><option>Податися</option><option>Подумати</option></select>
+      <div id="ev-msg" class="muted msg edit-msg" aria-live="polite"></div>
+      <div class="row">
+        <button type="button" class="btn" id="ev-save">✦ Зберегти зміни</button>
+        <button type="button" class="btn ghost grow" id="ev-cancel">Скасувати</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- GUEST GATE -->
+<div id="gate-overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="gate-title">
+  <div class="win open dialog">
+    <div class="win-head"><span class="ic"></span><span class="ti" id="gate-title">🔒 Потрібна реєстрація</span><span class="win-btns"><button type="button" class="ui win-btn close" id="gate-close" aria-label="Закрити">✕</button></span></div>
+    <div class="win-body center">
+      <div id="gate-fairy"></div>
+      <p class="gate-text" id="gate-text">Щоб відкрити фею й месенджер, спершу зареєструйся ✦ Це швидко й безкоштовно!</p>
+      <button type="button" class="btn full mb8" id="gate-register">✦ Увійти / зареєструватися</button>
+      <button type="button" class="btn ghost full" id="gate-cancel">Лишитись гостем</button>
+    </div>
+  </div>
+</div>
+
+<!-- WELCOME (first visit) -->
+<div id="welcome-overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+  <div class="win open dialog">
+    <div class="win-head"><span class="ic"></span><span class="ti" id="welcome-title">✦ Ласкаво просимо!</span><span class="win-btns"><button type="button" class="ui win-btn close" id="welcome-close" aria-label="Закрити">✕</button></span></div>
+    <div class="win-body">
+      <div class="welcome-top">
+        <div id="welcome-fairy"></div>
+        <div class="app-name">JobDesk 2000 ✦</div>
+        <div class="muted">твій Y2K-помічник у пошуку роботи</div>
+      </div>
+      <p class="welcome-text">Привіт! Я твоя фея-помічниця ✦ Тут ти можеш тримати весь пошук роботи в одному місці — з дрібкою магії:</p>
+      <div class="welcome-list">
+        <div class="welcome-item"><span class="wi">💼</span><span class="wt"><b>Збирай вакансії</b> — встав посилання або текст, я сама розберу компанію, посаду й зарплату</span></div>
+        <div class="welcome-item"><span class="wi">📊</span><span class="wt"><b>Стеж за статусами</b> — подалася, співбесіда, оффер — а статистика рахується сама</span></div>
+        <div class="welcome-item"><span class="wi">✉️</span><span class="wt"><b>Пиши cover letter</b> — завантаж резюме, і я складу лист під кожну вакансію</span></div>
+        <div class="welcome-item"><span class="wi">🧚</span><span class="wt"><b>Обери й розфарбуй фею</b> — я підбадьорюватиму тебе на кожному кроці</span></div>
+      </div>
+      <p class="muted note">Порада: зареєструйся (пошта або Google), щоб фея пам'ятала твій профіль ✦</p>
+      <button type="button" class="btn full" id="welcome-start">✦ Почати</button>
+    </div>
+  </div>
+</div>
+
+<!-- START MENU -->
+<div id="startmenu" role="menu" aria-label="Меню START">
+  <div class="sm-head">JobDesk 2000 ✦ <span id="sm-user">Гість</span></div>
+  <div class="sm-body">
+    <div class="sm-title">Як користуватись</div>
+    <div class="sm-step"><b>1.</b> Додай вакансію — посиланням, вставленим текстом або вручну (вікно «Вакансії»).</div>
+    <div class="sm-step"><b>2.</b> Постав статус і дату, лишай нотатки — статистика рахується сама.</div>
+    <div class="sm-step"><b>3.</b> Завантаж резюме (PDF) у месенджері — фея напише cover letter.</div>
+    <div class="sm-step"><b>4.</b> Пиши феї в чат, що підправити — вона перепише лист.</div>
+    <div class="sm-step"><b>5.</b> Обери й розфарбуй свою фею, постав фон робочого столу ✦</div>
+    <div class="sm-sep"></div>
+    <button type="button" class="ui sm-item" role="menuitem" data-sm="vacancies"><img src="assets/icons/vacancies.png" alt="">Відкрити вакансії</button>
+    <button type="button" class="ui sm-item" role="menuitem" data-sm="messenger"><img src="assets/icons/messenger.png" alt="">Написати cover letter</button>
+    <button type="button" class="ui sm-item" role="menuitem" data-sm="fairy"><img src="assets/icons/fairy.png" alt="">Моя фея</button>
+    <button type="button" class="ui sm-item" role="menuitem" data-sm="about"><img src="assets/icons/about.png" alt="">Про застосунок</button>
+    <button type="button" class="ui sm-item" role="menuitem" data-sm="valya"><img src="assets/icons/valya.png" alt="">Балувана Валя</button>
+    <button type="button" class="ui sm-item" role="menuitem" data-sm="readme"><img src="assets/icons/readme.png" alt="">README.TXT: як усе влаштовано</button>
+    <div class="sm-sep"></div>
+    <button type="button" class="ui sm-item" role="menuitem" data-action="backup">💾 Зберегти копію даних</button>
+    <button type="button" class="ui sm-item" role="menuitem" data-action="restore">📂 Відновити з копії</button>
+    <button type="button" class="ui sm-item" role="menuitem" data-action="table">📊 Вакансії в таблицю (CSV)</button>
+    <input type="file" id="backup-file" accept="application/json,.json" hidden>
+    <div class="sm-sep"></div>
+    <button type="button" class="ui sm-item" role="menuitem" id="sm-auth">👤 Увійти / зареєструватися</button>
+  </div>
+</div>
+
+<!-- TASKBAR -->
+<footer id="taskbar">
+  <button type="button" id="startbtn" class="ui px" aria-haspopup="menu" aria-controls="startmenu">◈ START</button>
+  <div class="tb-tasks" id="tb-tasks"></div>
+  <div class="tb-right">
+    <span class="tb-offline" id="tb-offline" title="Немає інтернету: зміни збережуться тут і полетять у хмару, щойно звʼязок повернеться" hidden>📡 офлайн</span>
+    <button type="button" class="ui tb-btn" id="btn-account" title="Акаунт">👤 <span id="acc-label">Гість</span></button>
+    <button type="button" class="ui tb-btn" id="btn-tile" title="Режим сітки">▦</button>
+    <button type="button" class="ui tb-btn" id="btn-theme" title="Тема">☀️</button>
+    <div id="clock">11:11</div>
+  </div>
+</footer>
+</body>
+</html>

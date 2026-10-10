@@ -1,0 +1,14 @@
+{
+  "name": "jobdesk2000-e2e",
+  "private": true,
+  "description": "Browser tests for JobDesk 2000 (Playwright). Run through docker compose, see the main README.",
+  "scripts": {
+    "test": "playwright test",
+    "test:flows": "playwright test --project=flows-desktop --project=flows-iphone",
+    "test:layout": "playwright test --grep @layout"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "axe-core": "4.10.3"
+  }
+}
