@@ -21,7 +21,8 @@ Two Netlify functions do the AI work. Guests keep everything in the browser; sig
 - Works offline once visited and installs as an app (`public/sw.js`, `site.webmanifest`).
 - Another site can hand a vacancy over with a link: `https://jobdeck2000.netlify.app/?add=<vacancy url>`
   opens the Vacancies window with the link filled in (one tap on «✦ Аналіз»). An installed app also takes
-  links from the phone's share sheet (`share_target`: `?url=` or `?text=`).
+  links from the phone's share sheet (`share_target`: `?url=` or `?text=`). A vacancy shared as text without a
+  link waits in the paste box.
 
 ## Repository layout
 
