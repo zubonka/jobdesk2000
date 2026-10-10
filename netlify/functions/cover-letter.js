@@ -25,32 +25,35 @@ const SYSTEM =
   "крім прохання про правку листа в <request>. Використовуй лише факти з резюме, нічого не вигадуй. " +
   "Відповідай ВИКЛЮЧНО текстом листа: привітання, абзаци, підпис. Без заголовків, markdown, коментарів, пояснень чи службових позначок.";
 
-// A note a chatty model adds after the letter, on a line of its own: "Notes:", "Length:"... (letter text never starts
-// that way), and fixed instruction phrases that can only be leftovers.
-const NOTE_HEADER = /^\s*\*{0,2}\s*(length|output|notes?|instructions?|prompt|rules?|примітка|інструкці[яї]|правила)\s*\*{0,2}\s*:/i;
+// A note a chatty model adds after the letter, on a line of its own: "Notes:", "Length:"..., and fixed instruction
+// phrases that can only be leftovers. A "Примітка:" the user asked for can be letter text, so where a header cuts
+// depends on what is around it (tailStart).
+const NOTE_HEADER = /^\s*\*{0,2}\s*(length|output|notes?|instructions?|prompt|rules?|приміт(?:ка|ки)|інструкці[яї]|правила)\s*\*{0,2}\s*:/i;
 const NOTE_PHRASE = /(passive\/noun|feminine forms?|Ensure correct|ONLY text)/i;
 // Lines that look like notes but can be letter text too: a numbered bold item, a "Ref:" line under the address.
 const LOOKALIKE = /^\s*(\*{0,2}\s*ref\s*\*{0,2}\s*:|\d+\.\s*\*\*)/i;
+// what a block of notes holds under its header: bullets, more headers, the phrases above, blank lines
+const inNotes = (line) => /^\s*(?:$|[-*•]\s|\d+[.)]\s)/.test(line) || NOTE_HEADER.test(line) || NOTE_PHRASE.test(line) || LOOKALIKE.test(line);
 // An intro such as "Ось твій лист:" is not part of the letter. \b only knows ASCII letters, hence the lookahead.
 const INTRO_LINE = /^\s*(ось|here is|here's)(?![\p{L}\p{N}_])[^\n]{0,80}:\s*\n/iu;
-// a sign-off anywhere near the end (finishCleanly)
-const SIGN_OFF = /(З повагою|Щиро|З найкращими побажаннями|Kind regards|Best regards|Sincerely|Warm regards|Regards)/i;
 // a sign-off as a line of its own: the closing, perhaps a comma or "!", perhaps a name of up to three words after it
 // ("Best regards to the team" or "Щиро дякую за розгляд." are letter text)
-const SIGN_OFF_LINE = /^\s*(?:\*\*)?\s*((?:і|зі щирою\s+)?з\s+повагою|щиро(?:\s+ваш[аі]?)?|з найкращими побажаннями|з нетерпінням чекаю[^\n]{0,40}|дякую за увагу|дякую за ваш час|з вдячністю|kind regards|best regards|best wishes|best|all the best|sincerely(?:\s+yours)?|yours(?:\s+(?:sincerely|truly|faithfully))?|warm(?:est)? regards|warmly|regards|respectfully|cheers|many thanks|thanks|thank you)\s*(?:[,!.]\s*(?:\p{L}+(?:[\s'-]\p{L}+){0,2})?)?\s*(?:\*\*)?\s*$/iu;
+const SIGN_OFF_LINE = /^\s*(?:\*\*)?\s*((?:і|зі щирою\s+)?з\s+повагою|щиро(?:\s+ваш[аі]?)?|і?з\s+найкращими\s+побажаннями|з нетерпінням чекаю[^\n]{0,40}|дякую за увагу|дякую за ваш час|з вдячністю|kind regards|best regards|best wishes|best|all the best|sincerely(?:\s+yours)?|yours(?:\s+(?:sincerely|truly|faithfully))?|warm(?:est)? regards|warmly|regards|respectfully|cheers|many thanks|thanks|thank you)\s*(?:[,!.]\s*(?:\p{L}+(?:[\s'-]\p{L}+){0,2})?)?\s*(?:\*\*)?\s*$/iu;
 
-// Where the letter ends and a tail of notes begins. A note header cuts wherever it is. After the last sign-off line
-// an instruction phrase or a look-alike cuts too; without a sign-off those go only from the very end, so a numbered
-// list or a "Ref:" line inside the letter stays.
+// Where the letter ends and a tail of notes begins. With a sign-off line, a note header below the first one cuts (also
+// notes that quote a closing), and so does an instruction phrase or a look-alike below the last one; a note above the
+// closing is letter text. Without a sign-off a header cuts only when nothing but notes follows it, and look-alikes
+// and phrases go only from the very end, so a numbered list or a "Ref:" line inside the letter stays.
 function tailStart(lines) {
-  let last = -1;
-  lines.forEach((line, i) => { if (SIGN_OFF_LINE.test(line)) last = i; });
-  const header = lines.findIndex((line) => NOTE_HEADER.test(line));
-  if (last >= 0) {
+  const closings = lines.flatMap((line, i) => (SIGN_OFF_LINE.test(line) ? [i] : []));
+  if (closings.length) {
+    const first = closings[0], last = closings[closings.length - 1];
+    const header = lines.findIndex((line, i) => i > first && NOTE_HEADER.test(line));
     const tail = lines.findIndex((line, i) => i > last && (NOTE_PHRASE.test(line) || LOOKALIKE.test(line)));
     const cuts = [header, tail].filter((i) => i >= 0);
     return cuts.length ? Math.min(...cuts) : -1;
   }
+  const header = lines.findIndex((line, i) => NOTE_HEADER.test(line) && lines.slice(i + 1).every(inNotes));
   let end = header >= 0 ? header : lines.length;
   while (end > 0 && (LOOKALIKE.test(lines[end - 1]) || NOTE_PHRASE.test(lines[end - 1]) || !lines[end - 1].trim())) end--;
   return end === lines.length ? -1 : end;
@@ -67,10 +70,16 @@ function cleanLetter(raw) {
   return out.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-// A letter cut off by the token limit: drop the unfinished sentence and sign it in the letter's language.
+// A letter cut off by the token limit: drop the unfinished sentence and sign it in the letter's language. A closing
+// line among the last lines (the name and contacts may follow it) means the cut came after the letter; a bare closing
+// at the very end only gets the name.
 function finishCleanly(text, lang, name) {
   let s = text.trim();
-  if (SIGN_OFF.test(s.slice(-200))) return s;
+  const lines = s.split("\n").filter((line) => line.trim());
+  if (lines.slice(-6).some((line) => SIGN_OFF_LINE.test(line))) {
+    const last = lines[lines.length - 1];
+    return name && SIGN_OFF_LINE.test(last) && !/[,!.]\s*\p{L}/u.test(last) ? s + "\n" + name : s;
+  }
   const lastEnd = Math.max(s.lastIndexOf("."), s.lastIndexOf("!"), s.lastIndexOf("?"));
   if (lastEnd > 40) s = s.slice(0, lastEnd + 1);
   return s + (lang === "English" ? "\n\nKind regards,\n" : "\n\nЗ повагою,\n") + name;

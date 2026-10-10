@@ -121,6 +121,23 @@ test("a letter cut off by the token limit ends on a full sentence and gets a sig
   assert.equal(bodyOf(await write()).text, LETTER, "an already signed letter is left alone");
 });
 
+test("a cut letter is judged by its closing line, not by a closing word in its last sentences", async () => {
+  writes("Шановна командо Acme!\n\nЯ щиро захоплююся вашими продуктами. Буду рада обговорити, як мій досвід може до", "MAX_TOKENS");
+  assert.equal(bodyOf(await write()).text, "Шановна командо Acme!\n\nЯ щиро захоплююся вашими продуктами.\n\nЗ повагою,\nОлена");
+
+  writes("Dear Acme team,\n\nI am sincerely excited about your design system. In regards to the handoff, I could hel", "MAX_TOKENS");
+  assert.equal(bodyOf(await write({ lang: "English", name: "Olena" })).text,
+    "Dear Acme team,\n\nI am sincerely excited about your design system.\n\nKind regards,\nOlena");
+
+  writes("Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nЗ повагою,", "MAX_TOKENS");
+  assert.equal(bodyOf(await write()).text, "Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nЗ повагою,\nОлена",
+    "a bare closing gets the name");
+
+  const contacts = "Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nЗ повагою,\nОлена Коваль\n+380 50 123 4567\nolena.koval@example.com";
+  writes(contacts, "MAX_TOKENS");
+  assert.equal(bodyOf(await write()).text, contacts, "contacts under the name are part of the signature");
+});
+
 test("cleanLetter keeps ordinary words and drops fences, intros, bold and trailing chatter", async () => {
   writes("```\nОсь ваш супровідний лист:\n**Шановна командо Acme!**\n\n\n\nМаю системне мислення і писала інструкції для команди підтримки.\n" +
     "Буду рада поспілкуватися.\n\nЗ повагою,\nОлена\nLength: 180 words\nNotes: tone kept warm\n```");
@@ -173,6 +190,26 @@ test("only a closing on a line of its own is a sign-off; words that look like no
   assert.equal(bodyOf(await write()).text, list.replace(/\*\*/g, ""));
 });
 
+test("a note the user asked for in the letter stays, notes under the letter go, also under Примітки:", async () => {
+  const revise = (letter) => {
+    writes(letter);
+    return post({ action: "revise", job: JOB, cv: CV, letter: LETTER, request: "додай примітку, що можу почати з 1 листопада", name: "Олена", gender: "f" });
+  };
+  const asked = "Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nПримітка: можу розпочати роботу з 1 листопада.\n\nЗ повагою,\nОлена";
+  assert.equal(bodyOf(await revise(asked)).text, asked);
+
+  const english = "Dear Acme team,\n\nI have six years of product design experience.\n\n**Note:** I am based in Kyiv and open to relocation.\n\nKind regards,\nOlena";
+  assert.equal(bodyOf(await revise(english)).text, english.replace(/\*\*/g, ""));
+
+  const ownClosing = "Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nПримітка: можу розпочати роботу з 1 листопада.\n\nСердечно,\nОлена";
+  assert.equal(bodyOf(await revise(ownClosing)).text, ownClosing, "a closing the regex does not know keeps the note too");
+  assert.equal(bodyOf(await revise(ownClosing.replace("Примітка: можу розпочати роботу з 1 листопада.\n\n", "") + "\n\nNotes:\n- tone kept warm\n- 120 words")).text,
+    ownClosing.replace("Примітка: можу розпочати роботу з 1 листопада.\n\n", ""), "but a block of notes under it goes");
+
+  writes(LETTER + "\n\nПримітки:\n- тон теплий, без кліше\n- 120 слів");
+  assert.equal(bodyOf(await write()).text, LETTER);
+});
+
 test("a letter without a sign-off loses only the notes at its very end", async () => {
   writes("Шановна командо! Маю шість років досвіду в дизайні й люблю складні задачі.\n1. **Length**: 120 words\n\nOutput: plain text", "MAX_TOKENS");
   assert.match(bodyOf(await write()).text, /^Шановна командо! Маю шість років досвіду в дизайні й люблю складні задачі\.\n\nЗ повагою,\nОлена$/);
@@ -181,6 +218,9 @@ test("a letter without a sign-off loses only the notes at its very end", async (
 test("a cut that would leave almost nothing keeps the raw text instead", async () => {
   writes("Rules: write warmly\nШановна командо! Я дуже хочу працювати у вас дизайнеркою.");
   assert.equal(bodyOf(await write()).text, "Rules: write warmly\nШановна командо! Я дуже хочу працювати у вас дизайнеркою.");
+
+  writes("Привіт!\n\nNotes:\n- tone kept warm and friendly\n- about forty words in total");
+  assert.equal(bodyOf(await write()).text, "Привіт!\n\nNotes:\n- tone kept warm and friendly\n- about forty words in total");
 });
 
 test("busy engines: the original auto-retry wording with retry:true", async () => {
