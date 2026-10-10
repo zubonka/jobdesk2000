@@ -420,3 +420,90 @@ test("the previous account's unsent changes are put aside even when two copies o
   assert.ok((store.getItem("jd2000_stash") || "").includes("A Unsent Co"), "A's unsent vacancy waits on the device");
   assert.ok(!JSON.stringify(cloud.data("uB")).includes("A Unsent"), "and never reaches B");
 });
+
+/* ----- a full storage after the first sync ----- */
+
+const ACCOUNT_TWO = () => data([job("Account Co"), job("Account Two")], { "Account Co|Dev": fresh("account note"), "Account Two|Dev": fresh("two") });
+const GUEST_SEED = () => ({ [JOBS]: JSON.stringify([job("Guest Co")]), [PROGRESS]: JSON.stringify({ "Guest Co|Dev": fresh("guest") }), [WALL]: picture("G", 200) });
+
+test("a guest's join that did not fit survives another device's write before its first push", async () => {
+  startCloud(ACCOUNT_TWO());
+  const phone = await synced("phone", ACCOUNT_TWO());
+  const store = new QuotaStorage();
+  const page = await device("page", { store, seed: GUEST_SEED() });
+  page.users.setUser({ name: "Оля", email: "u1@example.com", gender: "f", uid: "u1" });
+  store.quota = store.used() + 40;
+  await page.sync.startSync("u1");
+  page.deliver();
+  phone.jobs.setJobField("Account Co|Dev", "note", "phone edit"); // within the page's debounce
+  await phone.sync.flushSync();
+  page.deliver();
+  await page.sync.flushSync();
+  assert.ok(companies(cloud.data("u1")).includes("Guest Co"));
+  assert.equal(progress(cloud.data("u1"))["Account Co|Dev"].note, "phone edit");
+});
+
+test("a guest's join that did not fit survives a reload before its first push", async () => {
+  startCloud(ACCOUNT_TWO());
+  const store = new QuotaStorage();
+  const page = await device("page", { store, seed: GUEST_SEED() });
+  page.users.setUser({ name: "Оля", email: "u1@example.com", gender: "f", uid: "u1" });
+  store.quota = store.used() + 40;
+  await page.sync.startSync("u1");
+  page.deliver();
+  page.sync.stopSync(); // closed before the push
+  const again = await device("page2", { store });
+  await again.sync.startSync("u1");
+  again.deliver();
+  await again.sync.flushSync();
+  assert.ok(companies(cloud.data("u1")).includes("Guest Co"));
+});
+
+test("a device that cannot hold the cloud's wallpaper settles, and its old edit never overwrites a newer one", async () => {
+  const start = data([job("Acme"), job("Beta")], { "Acme|Dev": fresh(), "Beta|Dev": fresh() });
+  startCloud(start);
+  const phone = await synced("phone", start);
+  phone.store.setItem(WALL, picture("P", 400));
+  phone.jobs.setJobField("Acme|Dev", "note", "new wallpaper");
+  await phone.sync.flushSync();
+  const store = new QuotaStorage();
+  const laptop = await device("laptop", { store, seed: { ...start, jd2000_owner: "u1", jd2000_sync_base: JSON.stringify(fingerprint(start)) } });
+  store.quota = store.used() + 4000; // room for edits, not for the picture
+  await laptop.sync.startSync("u1");
+  laptop.deliver();
+  laptop.jobs.setJobField("Acme|Dev", "note", "laptop");
+  assert.equal(await laptop.sync.flushSync(), true, "the device settles");
+  phone.deliver();
+  phone.jobs.setJobField("Acme|Dev", "note", "phone, later");
+  await phone.sync.flushSync();
+  laptop.deliver();
+  laptop.jobs.setJobField("Beta|Dev", "note", "unrelated laptop edit");
+  await laptop.sync.flushSync();
+  const p = progress(cloud.data("u1"));
+  assert.equal(p["Acme|Dev"].note, "phone, later");
+  assert.equal(p["Beta|Dev"].note, "unrelated laptop edit");
+  assert.equal(cloud.data("u1")[WALL], picture("P", 400));
+});
+
+test("changes put aside that did not fit when their account came back are not lost when another account signs in", async () => {
+  const startA = data([job("A Synced Co")], { "A Synced Co|Dev": fresh() }, "uA");
+  startCloud(startA, "uA");
+  startCloud(data([job("B Co")], { "B Co|Dev": fresh() }, "uB"), "uB");
+  const keptData = data([job("A Synced Co"), job("A Unsent Co")], { "A Synced Co|Dev": fresh(), "A Unsent Co|Dev": fresh("x".repeat(3000)) }, "uA");
+  const store = new QuotaStorage();
+  const page = await device("page", { store, seed: { jd2000_stash: JSON.stringify({ uA: { data: keptData, base: fingerprint(startA) } }) } });
+  page.users.setUser({ name: "Андрій", email: "a@example.com", gender: "m", uid: "uA" });
+  store.quota = store.used() + 2500; // the stash's long note does not fit back in
+  await page.sync.startSync("uA");
+  page.deliver();
+  await page.sync.flushSync();
+  page.users.setUser({ name: "Богдана", email: "b@example.com", gender: "f", uid: "uB" });
+  page.sync.stopSync();
+  store.quota = Infinity;
+  const b = await device("pageB", { store });
+  await b.sync.startSync("uB");
+  b.deliver();
+  await b.sync.flushSync();
+  assert.ok((store.getItem("jd2000_stash") || "").includes("A Unsent Co"), "A's unsent vacancy still waits on the device");
+  assert.ok(!JSON.stringify(cloud.data("uB")).includes("A Unsent"));
+});

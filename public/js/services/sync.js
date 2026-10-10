@@ -207,16 +207,31 @@ async function push() {
     if (!sameData(now, before)) {
       // The user kept typing while this was sent. What was written is the new common history, so it has to reach
       // this device too, or the next push would read another device's edits in it as deleted here.
-      saveBase(asRead(result.cloud, result.merged));
+      const shared = asRead(result.cloud, result.merged);
+      saveBase(shared);
       forgetRenames(sent);
       const next = merge(fingerprint(before), now, result.merged, { renamed: renamed() });
-      if (!sameData(next, now)) replaceLocal(next);
+      if (!sameData(next, now) && !replaceLocal(next)) {
+        // what did not fit here is not common history: those keys keep the value this device had before
+        const held = localData();
+        for (const key of Object.keys(next)) {
+          if (key === KEYS.user || held[key] === next[key]) continue;
+          if (before[key] === undefined) delete shared[key]; else shared[key] = before[key];
+        }
+        saveBase(shared);
+      }
       schedule();
       return true;
     }
-    // another device's edits came in with the merge; when they do not fit here, the old history stays and the
-    // device stays dirty, so the next push still counts them as the other device's
-    if (!sameData(result.merged, before) && !replaceLocal(result.merged)) return false;
+    // Another device's edits came in with the merge but did not all fit here (a full storage). Everything of this
+    // device is in the cloud now, so the common history is what this device really holds: the values that did not
+    // fit still read as the cloud's, and the device settles instead of pushing its old values again and again.
+    if (!sameData(result.merged, before) && !replaceLocal(result.merged)) {
+      saveBase(localData());
+      forgetRenames(sent);
+      setDirty(false);
+      return true;
+    }
     saveBase(asRead(result.cloud, result.merged));
     forgetRenames(sent);
     setDirty(false);
@@ -273,11 +288,12 @@ function firstSync(remote, version) {
     const merged = hasUserData(remote) ? merge(NO_HISTORY, local, remote, { preferRemote: true }) : local;
     if (!sameData(merged, local)) take(merged);
     setDirty(true);
-  } else if (isDirty() && hasBase() && hasUserData(remote)) {
-    // edits this device made before the cloud had them: merge instead of throwing them away.
-    // Without a base (a device upgraded from the old app) there is no common history to merge on, so the cloud wins.
+  } else if (isDirty() && (hasBase() || getRaw(KEYS.owner) === uid) && hasUserData(remote)) {
+    // Edits this device made before the cloud had them: merge instead of throwing them away (with no history left,
+    // as after a guest's join that did not fit, the cloud's values win where both have one). Only a device upgraded
+    // from the old app, with neither a base nor an owner mark, has nothing to merge on: there the cloud wins.
     kind = "merge";
-    const merged = merge(loadBase(), local, remote, { renamed: renamed() });
+    const merged = merge(loadBase(), local, remote, { renamed: renamed(), preferRemote: !hasBase() });
     if (!sameData(merged, local)) take(merged);
   } else if (hasUserData(remote)) {
     if (!sameData(remote, local)) take(remote);
@@ -287,6 +303,7 @@ function firstSync(remote, version) {
   }
   setRaw(KEYS.owner, uid);
   remove(KEYS.joining);
+  const held = localData(); // before the stash comes back: what of it did not fit must not count as common history
   stored = takeBackStash() && stored;
   if (stored) {
     // An empty cloud copy is a new account: an empty base, so what any device adds from now on counts as an
@@ -296,7 +313,7 @@ function firstSync(remote, version) {
     // A full storage refused part of it, and what did not fit is not common history: a merge keeps its old base, a
     // guest's join gets none, and a device that took the cloud copy shares only what it really holds, so the rest
     // still reads as the cloud's change. Dirty, so it is settled once there is room.
-    if (kind === "guest") remove(KEYS.syncBase); else if (kind === "cloud") saveBase(localData());
+    if (kind === "guest") remove(KEYS.syncBase); else if (kind === "cloud") saveBase(held);
     setDirty(true);
   }
   applied = version;
@@ -315,7 +332,12 @@ function stashOf(local) {
 // Written into the room the account's own data has just left. Still too big: without what its cloud copy already
 // holds unchanged, dropped from the data and the history together, so it does not read as deleted.
 function putStash(owner, kept) {
-  const all = getObject(KEYS.stash);
+  const all = getObject(KEYS.stash), old = all[owner];
+  if (old && typeof old === "object" && old.data) {
+    // changes already put aside for this account (a take-back that did not fit) are kept, merged with the new ones
+    const oldBase = old.base && old.base.keys && old.base.jobs ? old.base : NO_HISTORY;
+    kept = { data: merge(oldBase, kept.data, old.data), base: kept.base };
+  }
   if (setJSON(KEYS.stash, { ...all, [owner]: kept })) return true;
   const keys = { ...kept.base.keys }, data = {};
   for (const [key, value] of Object.entries(kept.data)) {
@@ -363,7 +385,7 @@ function onSnapshot(id, snap) {
   const copy = readCloud(snap, local);
   if (!copy) { setDirty(true); schedule(); return; } // not a copy at all: this device's data goes up over it
   const remote = copy.data;
-  const next = isDirty() && hasBase() ? merge(loadBase(), local, remote, { renamed: renamed() }) : remote;
+  const next = isDirty() ? merge(loadBase(), local, remote, { renamed: renamed(), preferRemote: !hasBase() }) : remote;
   if (!sameData(next, local) && !replaceLocal(next)) return; // a full storage: this copy is not the common history
   saveBase(remote);
   applied = version;
