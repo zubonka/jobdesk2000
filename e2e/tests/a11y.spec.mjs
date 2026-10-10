@@ -103,3 +103,40 @@ for (const theme of ["light", "dark"]) {
     await check(page, `${theme}: the fairy speaking`);
   });
 }
+
+test("the keyboard follows the windows: Enter on an icon opens one, closing or minimising gives the focus back", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "flows-desktop", "phones have no Tab key");
+  await seedVacancies(page);
+  await openApp(page);
+  const icon = page.locator('.d-icon[data-open="stats"]'), win = page.locator("#win-stats");
+  const focusIn = () => page.evaluate(() => document.activeElement?.closest(".win")?.id || null);
+
+  await icon.focus();
+  await page.keyboard.press("Enter");
+  await expect(win).toBeFocused();
+  await page.keyboard.press("Tab");
+  expect(await focusIn(), "Tab goes on inside the window").toBe("win-stats");
+
+  await win.locator('[data-close="stats"]').focus();
+  await page.keyboard.press("Enter");
+  await expect(win).not.toHaveClass(/open/);
+  await expect(icon, "closing gives the focus back to the icon").toBeFocused();
+
+  await page.keyboard.press("Enter");
+  await expect(win).toBeFocused();
+  await win.locator('[data-min="stats"]').focus();
+  await page.keyboard.press("Enter");
+  const task = page.locator('.tb-task[data-app="stats"]');
+  await expect(task, "a minimised window leaves the focus on its taskbar button").toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(win, "the taskbar button brings the window back with the focus").toBeFocused();
+
+  // a window that opens while the person types elsewhere does not take the keyboard away
+  await openWindow(page, "vacancies");
+  await page.locator("#f-search").focus();
+  await page.keyboard.type("Acme");
+  await openWindow(page, "about");
+  await expect(page.locator("#f-search")).toBeFocused();
+  await page.keyboard.type(" Studio");
+  await expect(page.locator("#f-search")).toHaveValue("Acme Studio");
+});

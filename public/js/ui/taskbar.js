@@ -3,7 +3,7 @@
 import { byId, qsa, html, setHtml } from "../core/dom.js";
 import { on, emit } from "../core/events.js";
 import { isAuthed, userName } from "../data/user.js";
-import { APPS, APP_NAMES, isOpen, isFocused, isMinimized, focusWin, minimizeWin, openWin } from "./windows.js";
+import { APPS, APP_NAMES, isOpen, isFocused, isMinimized, activateWin, minimizeWin, openWin } from "./windows.js";
 
 function renderTasks() {
   const wrap = byId("tb-tasks");
@@ -42,7 +42,7 @@ export function initTaskbar() {
     const t = e.target.closest(".tb-task");
     if (!t) return;
     // clicking the focused window's button minimises it, any other (a minimised one too) brings it forward
-    if (isFocused(t.dataset.app)) minimizeWin(t.dataset.app); else focusWin(t.dataset.app);
+    if (isFocused(t.dataset.app)) minimizeWin(t.dataset.app); else activateWin(t.dataset.app);
   });
 
   byId("startbtn").addEventListener("click", toggleMenu);

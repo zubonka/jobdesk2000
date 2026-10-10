@@ -35,6 +35,26 @@ export const isFocused = (app) => !!winEl(app)?.classList.contains("focused");
 const desktop = () => byId("desktop");
 const canDrag = () => !isMobile() && !tileMode;
 
+// The keyboard focus follows the windows, like in the dialogs: a window brought to the front takes it, unless the
+// person is typing somewhere else, and a closed or minimised window gives it back to what had it before.
+const focusBefore = {};
+const typing = (el) => !!el?.matches?.("input, textarea, select, [contenteditable]");
+
+function takeFocus(w) {
+  const el = document.activeElement;
+  if (w.contains(el) || typing(el)) return;
+  focusBefore[w.dataset.app] = el && el !== document.body ? el : null;
+  w.focus({ preventScroll: true });
+}
+
+function giveFocusBack(w, hadFocus, ...candidates) {
+  const before = focusBefore[w.dataset.app];
+  delete focusBefore[w.dataset.app];
+  if (!hadFocus) return;
+  const target = [...candidates, before].find((el) => el?.isConnected && el.getClientRects().length);
+  target?.focus({ preventScroll: true });
+}
+
 // fn runs every time the app's window is opened
 export function onOpen(app, fn) {
   (openHooks[app] ||= []).push(fn);
@@ -50,6 +70,13 @@ export function focusWin(app) {
   emit("windows");
 }
 
+// focusWin for a window the person asked for (an icon, a taskbar button): the keyboard goes with it
+export function activateWin(app) {
+  focusWin(app);
+  const w = winEl(app);
+  if (w) takeFocus(w);
+}
+
 export function openWin(app) {
   if (APPS[app]?.needsAuth && !isAuthed()) { emit("gate", app); return; }
   const w = winEl(app);
@@ -58,24 +85,28 @@ export function openWin(app) {
   w.classList.add("open");
   if (tileMode) { if (w.parentElement !== byId("tilewrap")) byId("tilewrap").appendChild(w); }
   else if (!wasOpen) placeNew(w);
-  focusWin(app);
+  activateWin(app);
   (openHooks[app] || []).forEach((fn) => fn());
 }
 
 export function minimizeWin(app) {
   const w = winEl(app);
   if (!w || !w.classList.contains("open")) return;
+  const hadFocus = w.contains(document.activeElement);
   w.classList.add("minimized");
   w.classList.remove("focused");
   emit("windows");
+  giveFocusBack(w, hadFocus, document.querySelector(`.tb-task[data-app="${app}"]`)); // the window lives there now
 }
 
 export function closeWin(app) {
   const w = winEl(app);
   if (!w) return;
+  const hadFocus = w.contains(document.activeElement);
   w.classList.remove("open", "focused", "minimized");
   if (tileMode && w.parentElement === byId("tilewrap")) desktop().appendChild(w);
   emit("windows");
+  giveFocusBack(w, hadFocus);
 }
 
 // Centre a newly opened window, cascading a little so several windows do not stack exactly.
@@ -181,6 +212,7 @@ function setTileMode(on) {
 
 export function initWindows() {
   for (const w of qsa(".win[data-app]")) {
+    w.tabIndex = -1; // focusable from code (takeFocus), not a Tab stop of its own
     makeDraggable(w);
     makeResizable(w);
     w.addEventListener("pointerdown", () => { if (!w.classList.contains("focused")) focusWin(w.dataset.app); });

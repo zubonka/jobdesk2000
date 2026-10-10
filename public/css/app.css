@@ -89,7 +89,7 @@ input, textarea{user-select:text; -webkit-user-select:text;}
 .win.open{display:flex;}
 .win[data-app]{max-width:calc(100vw - 1rem);}
 .win.minimized{display:none !important;}
-.dialog:focus{outline:none;}
+.dialog:focus, .win:focus{outline:none;}
 .tb-task.min{border-style:dashed;} /* a minimised window: told apart by its outline, its label keeps full contrast */
 .win.focused{box-shadow:.375rem .375rem 0 var(--shadow), 0 0 2.5rem rgba(120,80,255,.3); border-color:var(--accent);}
 .win-resize{position:absolute; right:0; bottom:0; width:1.125rem; height:1.125rem; cursor:nwse-resize; z-index:5;
