@@ -1,4 +1,4 @@
-const { test } = require("node:test");
+const { test, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 const { claims, signToken, json, geminiReply, groqReply, overloaded, stubFetch, geminiPrompt, event, bodyOf, freshRequire } = require("./helpers");
 const { handler } = require("../../netlify/functions/cover-letter");
@@ -9,7 +9,9 @@ const JOB = { company: "Acme", title: "Product Designer", field: "Дизайн",
 const LETTER = "Шановна командо Acme!\n\nМене звати Олена, я продуктова дизайнерка з шестирічним досвідом. " +
   "Маю системне мислення і люблю дизайн-системи.\n\nБуду рада поспілкуватися.\n\nЗ повагою,\nОлена";
 
-const token = signToken();
+// every test signs in as its own user: the hourly letter limit per user is not what this file tests
+let token, users = 0;
+beforeEach(() => { token = signToken(claims({ sub: "uid-" + ++users })); });
 const post = (body, extra = {}) => handler(event({ body, token, ...extra }));
 const write = (extra) => post({ action: "write", job: JOB, cv: CV, name: "Олена", gender: "f", ...extra });
 const writes = (text, finishReason) => stubFetch({ gemini: () => geminiReply(text, finishReason) });
@@ -133,6 +135,18 @@ test("a cut letter is judged by its closing line, not by a closing word in its l
   assert.equal(bodyOf(await write()).text, "Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nЗ повагою,\nОлена",
     "a bare closing gets the name");
 
+  writes("Шановна командо Acme!\n\nЯ створила дизайн-систему для трьох продуктів.\n\nЗ нетерпінням чекаю на нашу розмо", "MAX_TOKENS");
+  assert.equal(bodyOf(await write()).text, "Шановна командо Acme!\n\nЯ створила дизайн-систему для трьох продуктів.\n\nЗ повагою,\nОлена",
+    "a cut looking-forward line is no closing");
+
+  writes("Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nДякую за увагу!\n\nЗ пов", "MAX_TOKENS");
+  assert.equal(bodyOf(await write()).text, "Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nДякую за увагу!\n\nЗ повагою,\nОлена",
+    "a thank-you above a cut closing is no closing either");
+
+  writes("Dear Acme team,\n\nI have six years of product design experience.\n\nThank you!\n\nBest rega", "MAX_TOKENS");
+  assert.equal(bodyOf(await write({ lang: "English", name: "Olena" })).text,
+    "Dear Acme team,\n\nI have six years of product design experience.\n\nThank you!\n\nKind regards,\nOlena");
+
   const contacts = "Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nЗ повагою,\nОлена Коваль\n+380 50 123 4567\nolena.koval@example.com";
   writes(contacts, "MAX_TOKENS");
   assert.equal(bodyOf(await write()).text, contacts, "contacts under the name are part of the signature");
@@ -201,13 +215,32 @@ test("a note the user asked for in the letter stays, notes under the letter go, 
   const english = "Dear Acme team,\n\nI have six years of product design experience.\n\n**Note:** I am based in Kyiv and open to relocation.\n\nKind regards,\nOlena";
   assert.equal(bodyOf(await revise(english)).text, english.replace(/\*\*/g, ""));
 
-  const ownClosing = "Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nПримітка: можу розпочати роботу з 1 листопада.\n\nСердечно,\nОлена";
+  const ownClosing = "Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nПримітка: можу розпочати роботу з 1 листопада.\n\nДо зустрічі,\nОлена";
   assert.equal(bodyOf(await revise(ownClosing)).text, ownClosing, "a closing the regex does not know keeps the note too");
   assert.equal(bodyOf(await revise(ownClosing.replace("Примітка: можу розпочати роботу з 1 листопада.\n\n", "") + "\n\nNotes:\n- tone kept warm\n- 120 words")).text,
     ownClosing.replace("Примітка: можу розпочати роботу з 1 листопада.\n\n", ""), "but a block of notes under it goes");
 
   writes(LETTER + "\n\nПримітки:\n- тон теплий, без кліше\n- 120 слів");
   assert.equal(bodyOf(await write()).text, LETTER);
+
+  const afterThanks = "Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nЗ нетерпінням чекаю на вашу відповідь.\n\n" +
+    "Примітка: можу розпочати роботу з 1 листопада.\n\nЗ повагою,\nОлена";
+  assert.equal(bodyOf(await revise(afterThanks)).text, afterThanks, "a thank-you line above the note is letter text");
+  const thankYou = "Dear Acme team,\n\nI have six years of product design experience.\n\nThank you!\n\nNote: I am based in Kyiv.\n\nKind regards,\nOlena";
+  assert.equal(bodyOf(await revise(thankYou)).text, thankYou);
+
+  writes(LETTER + "\n\n---\n\n**Примітки:**\n* тон теплий\n* 120 слів");
+  assert.equal(bodyOf(await write()).text, LETTER, "the rule above the notes goes with them");
+});
+
+test("closings a model often picks are known, so prose notes under them go", async () => {
+  const english = "Dear Acme team,\n\nI have six years of product design experience.\n\nWith kind regards,\nOlena";
+  writes(english + "\n\nNotes:\nI kept the tone warm and highlighted design systems.\nLength: 120 words");
+  assert.equal(bodyOf(await write({ lang: "English" })).text, english);
+
+  const warm = "Шановна командо Acme!\n\nМаю шість років досвіду в продуктовому дизайні.\n\nСердечно,\nОлена";
+  writes(warm + "\n\nNotes: tone kept warm.\nI focused on design systems as requested.");
+  assert.equal(bodyOf(await write()).text, warm);
 });
 
 test("a letter without a sign-off loses only the notes at its very end", async () => {

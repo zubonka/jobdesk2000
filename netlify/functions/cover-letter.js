@@ -36,16 +36,34 @@ const LOOKALIKE = /^\s*(\*{0,2}\s*ref\s*\*{0,2}\s*:|\d+\.\s*\*\*)/i;
 const inNotes = (line) => /^\s*(?:$|[-*•]\s|\d+[.)]\s)/.test(line) || NOTE_HEADER.test(line) || NOTE_PHRASE.test(line) || LOOKALIKE.test(line);
 // An intro such as "Ось твій лист:" is not part of the letter. \b only knows ASCII letters, hence the lookahead.
 const INTRO_LINE = /^\s*(ось|here is|here's)(?![\p{L}\p{N}_])[^\n]{0,80}:\s*\n/iu;
-// a sign-off as a line of its own: the closing, perhaps a comma or "!", perhaps a name of up to three words after it
-// ("Best regards to the team" or "Щиро дякую за розгляд." are letter text)
-const SIGN_OFF_LINE = /^\s*(?:\*\*)?\s*((?:і|зі щирою\s+)?з\s+повагою|щиро(?:\s+ваш[аі]?)?|і?з\s+найкращими\s+побажаннями|з нетерпінням чекаю[^\n]{0,40}|дякую за увагу|дякую за ваш час|з вдячністю|kind regards|best regards|best wishes|best|all the best|sincerely(?:\s+yours)?|yours(?:\s+(?:sincerely|truly|faithfully))?|warm(?:est)? regards|warmly|regards|respectfully|cheers|many thanks|thanks|thank you)\s*(?:[,!.]\s*(?:\p{L}+(?:[\s'-]\p{L}+){0,2})?)?\s*(?:\*\*)?\s*$/iu;
+// A closing as a line of its own: the words, perhaps a comma or "!", perhaps a name of up to three words after them
+// ("Best regards to the team" or "Щиро дякую за розгляд." are letter text).
+const closingLine = (words) => new RegExp(String.raw`^\s*(?:\*\*)?\s*(${words})\s*(?:[,!.]\s*(?:\p{L}+(?:[\s'-]\p{L}+){0,2})?)?\s*(?:\*\*)?\s*$`, "iu");
+// the closing proper, which ends a letter
+const CLOSING = String.raw`(?:і|зі щирою\s+)?з\s+повагою|щиро(?:\s+ваш[аі]?)?|і?з\s+найкращими\s+побажаннями|з вдячністю|з надією на (?:плідну\s+)?співпрацю|сердечно|з теплом|(?:with\s+)?(?:kind|best|warm(?:est)?)\s+regards|kindest regards|best wishes|best|all the best|sincerely(?:\s+yours)?|yours(?:\s+(?:sincerely|truly|faithfully))?|warmly|regards|respectfully|cheers`;
+// a thank-you or a looking-forward line: it often stands just above the closing, sometimes in its place
+const THANKS = String.raw`з нетерпінням чекаю[^\n]{0,40}|дякую за увагу|дякую за ваш час|many thanks|thanks|thank you`;
+const CLOSING_LINE = closingLine(CLOSING);
+const SIGN_OFF_LINE = closingLine(CLOSING + "|" + THANKS);
+// a name under the closing: up to three words, initials allowed
+const NAME_LINE = /^\s*\p{L}+(?:[\s'’.-]+\p{L}+){0,2}\.?\s*$/u;
+// a markdown rule a model puts between the letter and its notes
+const RULE = /^\s*([-*_])\s*(?:\1\s*){2,}$/;
 
-// Where the letter ends and a tail of notes begins. With a sign-off line, a note header below the first one cuts (also
+// A sign-off line that ends the letter: the last line, or with the name on it or on the next line. A thank-you line
+// followed by more text is part of the letter.
+function closesLetter(lines, i) {
+  if (!SIGN_OFF_LINE.test(lines[i])) return false;
+  const next = lines.slice(i + 1).find((line) => line.trim());
+  return next === undefined || /[,!.]\s*\p{L}/u.test(lines[i]) || NAME_LINE.test(next);
+}
+
+// Where the letter ends and a tail of notes begins. With a sign-off, a note header below the first one cuts (also
 // notes that quote a closing), and so does an instruction phrase or a look-alike below the last one; a note above the
-// closing is letter text. Without a sign-off a header cuts only when nothing but notes follows it, and look-alikes
+// sign-off is letter text. Without a sign-off a header cuts only when nothing but notes follows it, and look-alikes
 // and phrases go only from the very end, so a numbered list or a "Ref:" line inside the letter stays.
 function tailStart(lines) {
-  const closings = lines.flatMap((line, i) => (SIGN_OFF_LINE.test(line) ? [i] : []));
+  const closings = lines.flatMap((line, i) => (closesLetter(lines, i) ? [i] : []));
   if (closings.length) {
     const first = closings[0], last = closings[closings.length - 1];
     const header = lines.findIndex((line, i) => i > first && NOTE_HEADER.test(line));
@@ -63,7 +81,8 @@ function tailStart(lines) {
 function cleanLetter(raw) {
   const t = raw.replace(/```[a-z]*\n?/gi, "").replace(/```/g, "").replace(/<\/?(letter|cv|vacancy|request)>/gi, "").replace(INTRO_LINE, "");
   const lines = t.split("\n");
-  const end = tailStart(lines);
+  let end = tailStart(lines);
+  if (end >= 0) while (end > 0 && (!lines[end - 1].trim() || RULE.test(lines[end - 1]))) end--;
   let out = (end < 0 ? lines : lines.slice(0, end)).join("\n").trim();
   // a cut that leaves almost nothing was wrong: the raw text is better than no letter
   if (out.length < 40) out = t.trim();
@@ -71,14 +90,14 @@ function cleanLetter(raw) {
 }
 
 // A letter cut off by the token limit: drop the unfinished sentence and sign it in the letter's language. A closing
-// line among the last lines (the name and contacts may follow it) means the cut came after the letter; a bare closing
-// at the very end only gets the name.
+// line (not a thank-you, which can stand above it or be cut itself) means the cut came after the letter, in the name
+// or the contacts; a bare closing at the very end only gets the name.
 function finishCleanly(text, lang, name) {
   let s = text.trim();
   const lines = s.split("\n").filter((line) => line.trim());
-  if (lines.slice(-6).some((line) => SIGN_OFF_LINE.test(line))) {
+  if (lines.some((line) => CLOSING_LINE.test(line))) {
     const last = lines[lines.length - 1];
-    return name && SIGN_OFF_LINE.test(last) && !/[,!.]\s*\p{L}/u.test(last) ? s + "\n" + name : s;
+    return name && CLOSING_LINE.test(last) && !/[,!.]\s*\p{L}/u.test(last) ? s + "\n" + name : s;
   }
   const lastEnd = Math.max(s.lastIndexOf("."), s.lastIndexOf("!"), s.lastIndexOf("?"));
   if (lastEnd > 40) s = s.slice(0, lastEnd + 1);
