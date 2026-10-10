@@ -19,22 +19,27 @@ export const MIN_CV_CHARS = 40;
 export const hasCV = () => cv.length >= MIN_CV_CHARS;
 export const cvWordCount = () => (cv.trim() ? cv.trim().split(/\s+/).length : 0);
 
+// What the fairy learned belongs to one CV: another CV, or none, starts from what its own text says.
+function learnFrom(text) {
+  if (text === cv) return;
+  cv = text;
+  persona.specialty = detectSpecialty(cv);
+  persona.role = "";
+  persona.phrases = [];
+}
+
 // Returns false when the text does not fit into browser storage.
 export function setCV(text) {
   if (!setRaw(KEYS.cv, text)) return false;
-  cv = text;
-  persona.specialty = detectSpecialty(cv);
+  learnFrom(text);
   emit("cv");
   return true;
 }
 
 export function clearCV() {
-  cv = "";
+  learnFrom("");
   remove(KEYS.cv);
   emit("cv");
 }
 
-export function reloadCV() {
-  cv = getRaw(KEYS.cv) || "";
-  persona.specialty = detectSpecialty(cv);
-}
+export const reloadCV = () => learnFrom(getRaw(KEYS.cv) || "");
