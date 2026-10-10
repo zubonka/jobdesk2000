@@ -420,17 +420,26 @@ test("a guest saves a copy of the data, loses it and gets it back from the copy;
 
 test("a week after applying with no answer the fairy suggests reminding the employer, once a day", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "flows-desktop", "the reminder logic is the same on every device");
-  const kyivDay = (ms) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Kyiv" }).format(new Date(ms));
+  // calendar days in Kyiv, as the app counts them (240 hours back is not always 10 days across a clock change)
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Kyiv" }).format(new Date());
+  const [y, m, d] = today.split("-").map(Number);
+  const tenDaysAgo = new Date(Date.UTC(y, m - 1, d - 10)).toISOString().slice(0, 10);
   await seedStorage(page, {
     jobdesk2000_welcomed: "1",
     jobdesk2000_added_v1: [{ prio: "Податися", company: "Waiting Co", title: "Designer", field: "—", emp: "—", loc: "—", salary: "—", url: "#" }],
-    jobdesk2000_v1: { "Waiting Co|Designer": { status: "Подалася", date: kyivDay(Date.now() - 10 * 86400000), deadline: "", note: "" } },
+    jobdesk2000_v1: { "Waiting Co|Designer": { status: "Подалася", date: tenDaysAgo, deadline: "", note: "" } },
   });
   await openApp(page);
   await register(page, { name: "Олена", email: freshEmail(testInfo) });
   await page.reload(); // the greeting first, then the word for the day
   await expect(page.locator("#clippy-say")).toContainText("10 днів тому ти подалася на «Waiting Co — Designer», а відповіді ще нема", { timeout: 25_000 });
-  expect(await page.evaluate(() => localStorage.getItem("jd2000_followup"))).toBe(kyivDay(Date.now()));
+  expect(await page.evaluate(() => localStorage.getItem("jd2000_followup"))).toBe(today);
+
+  // the next page load that day stays quiet about it
+  await page.reload();
+  await page.waitForFunction(() => !!window.jobdesk);
+  await page.waitForTimeout(16_000); // past the greeting and the moment the word for the day would come
+  await expect(page.locator("#clippy-say")).not.toContainText("відповіді ще нема");
 });
 
 test.describe("installed or offline", () => {
