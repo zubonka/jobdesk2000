@@ -290,3 +290,77 @@ test("stored maps that are not plain objects read as empty ones", async () => {
   storage.setItem("jobdesk2000_test", '{"a":1}');
   assert.deepEqual(getObject("jobdesk2000_test"), { a: 1 });
 });
+
+/* ----- another tab, a full storage ----- */
+
+// another tab of the browser writes the stored vacancies behind this module's back
+function otherTabWrites(list, progress) {
+  storage.setItem(KEYS.jobs, JSON.stringify(list));
+  storage.setItem(KEYS.progress, JSON.stringify(progress));
+}
+
+test("a change made here goes on top of what another tab saved meanwhile, and the board is told to redraw", () => {
+  jobs.addJob({ company: "Acme", title: "Designer" });
+  const events = [];
+  const off = on("jobs", (e) => events.push(e.detail?.type ?? e.type));
+  otherTabWrites(
+    [...storedJSON(KEYS.jobs), { prio: DEFAULT_PRIO, company: "Phone Co", title: "QA", field: NONE, emp: NONE, loc: NONE, salary: NONE, url: "#" }],
+    { ...storedJSON(KEYS.progress), "Phone Co|QA": { status: "Подалася", date: "2026-10-09", deadline: "", note: "from the phone" } },
+  );
+  jobs.setJobField("Acme|Designer", "note", "typed here");
+  off?.();
+  assert.deepEqual(storedJSON(KEYS.jobs).map((j) => j.company), ["Acme", "Phone Co"]);
+  assert.equal(storedJSON(KEYS.progress)["Phone Co|QA"].note, "from the phone");
+  assert.equal(storedJSON(KEYS.progress)["Acme|Designer"].note, "typed here");
+  assert.equal(jobs.getJob("Acme|Designer").note, "typed here");
+  assert.ok(events.includes("reload"), "the board redraws with the other tab's vacancy");
+});
+
+test("without another tab nothing is loaded again", () => {
+  jobs.addJob({ company: "Acme", title: "Designer" });
+  const before = jobs.getJob("Acme|Designer");
+  jobs.setJobField("Acme|Designer", "note", "x");
+  assert.equal(jobs.getJob("Acme|Designer"), before, "the same object: no reload");
+});
+
+test("a full storage never leaves a list paired with the progress of another list", () => {
+  jobs.addJob({ company: "Acme", title: "Designer" });
+  jobs.setJobField("Acme|Designer", "status", "interview1");
+  jobs.setJobField("Acme|Designer", "note", "HR Olena");
+  const listBefore = storage.getItem(KEYS.jobs), progressBefore = storage.getItem(KEYS.progress);
+  const setItem = storage.setItem.bind(storage);
+  for (const full of [KEYS.progress, KEYS.jobs]) {
+    storage.setItem = (key, value) => { if (key === full) throw new DOMException("full", "QuotaExceededError"); setItem(key, value); };
+    try {
+      jobs.updateJob("Acme|Designer", { title: "Designer (Senior, remote, EU timezone)" });
+    } finally {
+      storage.setItem = setItem;
+    }
+    assert.equal(storage.getItem(KEYS.jobs), listBefore, `${full} full: the list stays as it was`);
+    assert.equal(storage.getItem(KEYS.progress), progressBefore, `${full} full: the progress stays as it was`);
+    jobs.loadJobs();
+    assert.deepEqual(jobs.allJobs().map((j) => [j.id, j.status, j.note]), [["Acme|Designer", "interview1", "HR Olena"]]);
+  }
+});
+
+test("an undone reset still works when the list was loaded again in between", () => {
+  jobs.addJob({ company: "Acme", title: "Designer" });
+  jobs.setJobField("Acme|Designer", "status", "offer");
+  jobs.setJobField("Acme|Designer", "note", "yes!");
+  const before = jobs.resetProgress();
+  jobs.loadJobs(); // a cloud copy or another tab reloaded the stores
+  jobs.restoreProgress(before);
+  assert.equal(jobs.getJob("Acme|Designer").status, "offer");
+  assert.equal(storedJSON(KEYS.progress)["Acme|Designer"].note, "yes!");
+});
+
+test("renames are recorded for the cloud merge, a chain of them as one, a rename back as none", () => {
+  jobs.addJob({ company: "A", title: "One" });
+  jobs.updateJob("A|One", { company: "B" });
+  jobs.updateJob("B|One", { company: "C" });
+  assert.deepEqual(storedJSON(KEYS.renames), { "A|One": "C|One" });
+  jobs.updateJob("C|One", { company: "A" });
+  assert.deepEqual(storedJSON(KEYS.renames), {});
+  jobs.updateJob("A|One", { salary: "$1" });
+  assert.deepEqual(storedJSON(KEYS.renames), {}, "an edit that keeps the name is no rename");
+});

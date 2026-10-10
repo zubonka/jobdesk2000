@@ -19,6 +19,7 @@ export const KEYS = {
   syncBase: "jd2000_sync_base",      // fingerprint of the last copy this device and the cloud agreed on
   syncDirty: "jd2000_sync_dirty",    // "1" while local changes have not reached the cloud yet
   wallLocal: "jd2000_wall_local",    // "1" when the wallpaper is too big for the cloud copy and lives here only
+  renames: "jd2000_renames",         // { <old job id>: <new job id> } renamed here and not in the cloud yet
 };
 
 // Keys with this prefix are mirrored to the cloud for signed-in users.

@@ -324,6 +324,42 @@ test("a guest with vacancies signing in to an account that has some keeps both s
   await guest.context.close();
 });
 
+test("a guest's copy of a vacancy the account already has, or an older backup of it, keeps the account's status and note", async ({ page, browser }, testInfo) => {
+  const email = freshEmail(testInfo, "sync");
+  await seedStorage(page, { jobdesk2000_welcomed: "1" });
+  await openApp(page);
+  await register(page, { name: "Олена", email });
+  await addByHand(page, "Designer", "Same Co");
+  await addByHand(page, "Motion", "Backup Co");
+  await cardOf(page, "Same Co").locator(".st-sel").selectOption("interview1");
+  await cardOf(page, "Same Co").locator('textarea[data-k="note"]').fill("HR Olena, tech call Mon");
+  await cardOf(page, "Backup Co").locator(".st-sel").selectOption("offer");
+  await waitSynced(page);
+  const uid = await uidOf(page);
+
+  // a new browser: the same vacancy added again as a guest, and an older copy of another one restored from a backup
+  const blank = { prio: "Податися", field: "—", emp: "—", loc: "—", salary: "—", url: "#" };
+  const laptop = await newDevice(browser, {
+    jobdesk2000_welcomed: "1",
+    jobdesk2000_added_v1: [{ ...blank, company: "Same Co", title: "Designer" }, { ...blank, company: "Backup Co", title: "Motion" }],
+    jobdesk2000_v1: {
+      "Same Co|Designer": { status: "Не подавалися", date: "", deadline: "", note: "" },
+      "Backup Co|Motion": { status: "Подалися", date: "2026-09-01", deadline: "", note: "з копії" },
+    },
+  });
+  await signIn(laptop.page, email);
+  await waitSynced(laptop.page);
+  await openWindow(laptop.page, "vacancies");
+  await expect(cardOf(laptop.page, "Same Co").locator(".st-sel")).toHaveValue("interview1");
+  await expect(cardOf(laptop.page, "Same Co").locator('textarea[data-k="note"]')).toHaveValue("HR Olena, tech call Mon");
+  await expect(cardOf(laptop.page, "Backup Co").locator(".st-sel")).toHaveValue("offer");
+  const cloud = progressIn(await cloudData(uid));
+  expect(cloud["Same Co|Designer"]).toMatchObject({ status: "Перша співбесіда", note: "HR Olena, tech call Mon" });
+  expect(cloud["Backup Co|Motion"]).toMatchObject({ status: "Оффер", note: "з копії" });
+  await expect(cardOf(page, "Backup Co").locator('textarea[data-k="note"]')).toHaveValue("з копії", { timeout: 15_000 });
+  await laptop.context.close();
+});
+
 /* ----- accounts on one device ----- */
 
 test("account A then account B on the same device: B's device and cloud copy get nothing of A's", async ({ page }, testInfo) => {

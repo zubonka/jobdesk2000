@@ -257,6 +257,25 @@ test("a long unbroken company or title stays inside the card", async ({ page }) 
   expect(await layoutProblems(page)).toEqual([]);
 });
 
+/* ----- another tab ----- */
+
+test("a change made in one tab never saves over what another tab of the browser saved a moment before", async ({ page }) => {
+  await seedVacancies(page);
+  await boot(page);
+  await openWindow(page, "vacancies");
+  // the other tab's write: a page hears of its own writes through no event, so this tab still holds the older list
+  await page.evaluate(() => {
+    const list = JSON.parse(localStorage.getItem("jobdesk2000_added_v1"));
+    list.push({ prio: "Податися", company: "Other Tab Co", title: "QA", field: "—", emp: "—", loc: "—", salary: "—", url: "#" });
+    localStorage.setItem("jobdesk2000_added_v1", JSON.stringify(list));
+  });
+  await card(page, "Acme Studio").locator('textarea[data-k="note"]').fill("typed in this tab");
+  expect(await stored(page, JOBS_KEY).then((list) => list.map((j) => j.company))).toContain("Other Tab Co");
+  expect((await stored(page, PROGRESS_KEY))["Acme Studio|Senior Graphic Designer"].note).toBe("typed in this tab");
+  await expect(card(page, "Other Tab Co")).toHaveCount(1);
+  await expect(card(page, "Acme Studio").locator('textarea[data-k="note"]')).toHaveValue("typed in this tab");
+});
+
 /* ----- many vacancies ----- */
 
 function manyJobs(n, noteChars) {

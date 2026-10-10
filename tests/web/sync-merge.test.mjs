@@ -161,3 +161,98 @@ test("a removal on one side and a new vacancy that only looks alike are not take
   const out = merge(fingerprint(base), local, remote);
   assert.deepEqual(jobsOf(out).sort(), ["New|Designer", "Old|Designer"], "an edit beats a removal, and the new vacancy stays");
 });
+
+/* ----- a vacancy on both sides without a common history ----- */
+
+const ACCOUNT = data({
+  jobs: [job("SoftServe", "QA", { prio: "100% Податися", salary: "$2000", url: "https://jobs.example/qa" })],
+  progress: { "SoftServe|QA": { status: "Перша співбесіда", date: "2026-10-01", deadline: "2026-10-15", note: "HR Olena, tech call Mon 10:00" } },
+});
+
+test("a guest's blank copy of a vacancy the account has does not wipe the account's progress and fields", () => {
+  const guest = data({ jobs: [job("SoftServe", "QA")], progress: { "SoftServe|QA": { status: "Не подавалися", date: "", deadline: "", note: "" } } });
+  const out = merge(EMPTY, guest, ACCOUNT, { preferRemote: true });
+  assert.deepEqual(JSON.parse(out[KEYS.jobs]), JSON.parse(ACCOUNT[KEYS.jobs]));
+  assert.deepEqual(progressOf(out)["SoftServe|QA"], progressOf(ACCOUNT)["SoftServe|QA"]);
+});
+
+test("an older backup restored by a guest keeps the account's newer status, and both notes survive", () => {
+  const backup = data({ jobs: [job("SoftServe", "QA", { salary: "$1800" })], progress: { "SoftServe|QA": { status: "Подався", date: "2026-09-20", deadline: "", note: "sent CV" } } });
+  const out = merge(EMPTY, backup, ACCOUNT, { preferRemote: true });
+  const p = progressOf(out)["SoftServe|QA"];
+  assert.equal(p.status, "Перша співбесіда");
+  assert.equal(p.date, "2026-10-01");
+  assert.equal(p.deadline, "2026-10-15");
+  assert.equal(p.note, "HR Olena, tech call Mon 10:00\n\nsent CV");
+  assert.equal(JSON.parse(out[KEYS.jobs])[0].salary, "$2000");
+});
+
+test("what only the guest filled in joins the account's copy", () => {
+  const account = data({ jobs: [job("Acme", "Designer")], progress: { "Acme|Designer": { status: "Не подавалася", date: "", deadline: "", note: "" } } });
+  const guest = data({ jobs: [job("Acme", "Designer", { loc: "Віддалено", url: "https://acme.example/1" })], progress: { "Acme|Designer": { status: "Подалися", date: "2026-10-05", deadline: "", note: "via Djinni" } } });
+  const out = merge(EMPTY, guest, account, { preferRemote: true });
+  const [j] = JSON.parse(out[KEYS.jobs]);
+  assert.equal(j.loc, "Віддалено");
+  assert.equal(j.url, "https://acme.example/1");
+  assert.deepEqual(progressOf(out)["Acme|Designer"], { status: "Подалися", date: "2026-10-05", deadline: "", note: "via Djinni" });
+});
+
+test("the same vacancy added on two devices keeps what each filled in, this device's values first", () => {
+  const base = data({ jobs: [job("Other", "Card")] });
+  const local = data({ jobs: [job("Other", "Card"), job("Twin", "Co", { salary: "$1000" })], progress: { "Twin|Co": { status: "Подалася", date: "2026-10-02", deadline: "", note: "laptop" } } });
+  const remote = data({ jobs: [job("Other", "Card"), job("Twin", "Co", { loc: "Офіс", salary: "$1200" })], progress: { "Twin|Co": { status: "Не подавалася", date: "", deadline: "2026-10-30", note: "phone" } } });
+  const out = merge(fingerprint(base), local, remote);
+  const twin = JSON.parse(out[KEYS.jobs]).find((j) => j.company === "Twin");
+  assert.equal(twin.salary, "$1000");
+  assert.equal(twin.loc, "Офіс");
+  assert.deepEqual(progressOf(out)["Twin|Co"], { status: "Подалася", date: "2026-10-02", deadline: "2026-10-30", note: "laptop\n\nphone" });
+  const again = merge(fingerprint(out), out, out);
+  assert.ok(sameData(again, out), "stable");
+});
+
+/* ----- removals that only look like renames ----- */
+
+for (const [name, dropped, added] of [
+  ["two blank cards", job("SoftServe", "QA"), job("EPAM", "Designer")],
+  ["two cards that share the format", job("SoftServe", "QA", { emp: "Full-time", loc: "Віддалено" }), job("EPAM", "Designer", { emp: "Full-time", loc: "Віддалено" })],
+  ["only the title differs", job("SoftServe", "QA"), job("SoftServe", "Designer")],
+]) {
+  test(`a card removed here and a fresh one added are not a rename (${name}): the other device's edits stay on their card`, () => {
+    const fresh = { status: "Не подавалася", date: "", deadline: "", note: "" };
+    const keep = job("Keep", "Co");
+    const id = (j) => j.company + "|" + j.title;
+    const base = data({ jobs: [keep, dropped], progress: { "Keep|Co": fresh, [id(dropped)]: fresh } });
+    const laptop = data({ jobs: [keep, added], progress: { "Keep|Co": fresh, [id(added)]: fresh } });
+    const phone = data({ jobs: [keep, dropped], progress: { "Keep|Co": fresh, [id(dropped)]: { status: "Подалася", date: "2026-10-10", deadline: "", note: "HR Olena, call Mon" } } });
+    for (const [local, remote] of [[laptop, phone], [phone, laptop]]) {
+      const out = merge(fingerprint(base), local, remote);
+      assert.deepEqual(jobsOf(out).sort(), [id(added), id(dropped), "Keep|Co"].sort());
+      assert.equal(progressOf(out)[id(dropped)].note, "HR Olena, call Mon");
+      assert.equal(progressOf(out)[id(added)].note, "", "the new card stays fresh");
+    }
+  });
+}
+
+test("a card with a link is still followed through a rename", () => {
+  const base = data({ jobs: [job("Typo Co", "Designer", { url: "https://jobs.example/7" })], progress: { "Typo Co|Designer": { status: "Не подавалася", date: "", deadline: "", note: "" } } });
+  const renamed = data({ jobs: [job("Typo Company", "Designer", { url: "https://jobs.example/7" })], progress: { "Typo Company|Designer": { status: "Не подавалася", date: "", deadline: "", note: "" } } });
+  const offer = data({ jobs: [job("Typo Co", "Designer", { url: "https://jobs.example/7" })], progress: { "Typo Co|Designer": { status: "Оффер", date: "", deadline: "", note: "" } } });
+  for (const [local, remote] of [[renamed, offer], [offer, renamed]]) {
+    const out = merge(fingerprint(base), local, remote);
+    assert.deepEqual(jobsOf(out), ["Typo Company|Designer"]);
+    assert.equal(progressOf(out)["Typo Company|Designer"].status, "Оффер");
+  }
+});
+
+test("a blank card renamed on this device follows the rename it recorded; renamed on the other one it stays apart", () => {
+  const fresh = { status: "Не подавалася", date: "", deadline: "", note: "" };
+  const base = data({ jobs: [job("Typo Co", "Designer")], progress: { "Typo Co|Designer": fresh } });
+  const renamed = data({ jobs: [job("Typo Company", "Designer")], progress: { "Typo Company|Designer": fresh } });
+  const offer = data({ jobs: [job("Typo Co", "Designer")], progress: { "Typo Co|Designer": { ...fresh, status: "Оффер" } } });
+  const here = merge(fingerprint(base), renamed, offer, { renamed: { "Typo Co|Designer": "Typo Company|Designer" } });
+  assert.deepEqual(jobsOf(here), ["Typo Company|Designer"]);
+  assert.equal(progressOf(here)["Typo Company|Designer"].status, "Оффер");
+  const there = merge(fingerprint(base), offer, renamed);
+  assert.deepEqual(jobsOf(there).sort(), ["Typo Co|Designer", "Typo Company|Designer"].sort(), "a duplicate, never a lost edit");
+  assert.equal(progressOf(there)["Typo Co|Designer"].status, "Оффер");
+});

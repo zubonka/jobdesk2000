@@ -34,12 +34,14 @@ let ready = false;       // first server snapshot handled
 let timer = null;
 let running = null;      // promise of the push in flight; pushes never overlap
 let again = false;       // another push was asked for while one was running
-let lastPushed = null;   // JSON we wrote last, to recognise its echo
-let inflight = null;     // JSON of the write being committed (its snapshot can arrive before the commit resolves)
-// The newest cloud version ("updated") this device has seen or written. Every write sets "updated" above the version
-// it read, so versions only grow; a watch that reconnects can still deliver an older copy after this device's own
-// write, and applying that would take back what the write had just merged in.
+// Cloud versions ("updated"). Every write sets "updated" above the version it read, so versions only grow and each
+// write has its own.
+let lastPushed = 0;      // our last write, to recognise its echo
+let inflight = 0;        // the write being committed (its snapshot can arrive before the commit resolves)
+// The newest version this device has seen or written: a watch that reconnects can still deliver an older copy after
+// this device's own write, and applying that would take back what the write had just merged in.
 let seen = 0;
+let applied = 0;         // the copy last applied here from the cloud
 let unsubscribe = null;
 
 const docRef = (fb, id) => fb.F.doc(fb.db, "users", id);
@@ -51,6 +53,14 @@ const loadBase = () => {
 };
 const hasBase = () => getRaw(KEYS.syncBase) !== null;
 const saveBase = (data) => setJSON(KEYS.syncBase, fingerprint(data));
+// the renames made here that the cloud does not have yet (data/jobs.js records them)
+const renamed = () => getObject(KEYS.renames);
+// Once a push put them in the cloud, the renames it carried are common history; one made meanwhile stays.
+function forgetRenames(sent) {
+  const now = renamed();
+  for (const [from, to] of Object.entries(sent)) if (now[from] === to) delete now[from];
+  if (Object.keys(now).length) setJSON(KEYS.renames, now); else remove(KEYS.renames);
+}
 
 // In a cloud copy: the wallpaper was left out because the document got too big, not removed.
 const WALL_OMITTED = "jd2000_wall_omitted";
@@ -129,6 +139,7 @@ function clearUserData() {
   });
   remove(KEYS.syncBase);
   remove(KEYS.wallLocal);
+  remove(KEYS.renames);
 }
 
 // Another tab of this browser signed the account out and took its data off the device (jd2000_owner is gone):
@@ -140,7 +151,7 @@ async function push() {
   const fb = firebaseNow();
   if (!fb || !uid || !ready || deviceLeftAccount(uid)) return false;
   const id = uid;
-  let before = null;
+  let before = null, sent = {};
   try {
     const result = await fb.F.runTransaction(fb.db, async (tx) => {
       const snap = await tx.get(docRef(fb, id));
@@ -149,10 +160,11 @@ async function push() {
       // like the user deleted whatever the other device added. Firestore may run this function again; each run
       // takes a fresh pair.
       before = localData();
+      sent = renamed();
       const copy = readCloud(snap, before) || { data: {}, raw: null }; // a broken document is written over
       const remote = copy.data;
       // an empty cloud document is a new account, not "everything was deleted"
-      const merged = hasUserData(remote) ? merge(loadBase(), before, remote) : { ...before };
+      const merged = hasUserData(remote) ? merge(loadBase(), before, remote, { renamed: sent }) : { ...before };
       const user = sameAccountUser(merged, before);
       if (user !== undefined) merged[KEYS.user] = user;
       const { cloud, wallLocal } = forCloud(merged);
@@ -160,22 +172,28 @@ async function push() {
       const read = snap.exists() ? Number(snap.data()?.updated) || 0 : 0;
       let version = read;
       if (!copy.raw || !sameData(cloud, copy.raw)) {
-        inflight = json;
         version = Math.max(Date.now(), read + 1);
+        inflight = version;
         tx.set(docRef(fb, id), { data: json, updated: version }, { merge: true });
       }
-      return { merged, cloud, json, wallLocal, version };
+      return { merged, cloud, wallLocal, version };
     });
     if (uid !== id) return false;
+    // A newer copy from another device was applied while this push waited for its answer: that copy and its base
+    // already stand here, and saving this older one as the base would make the other device's edits look like
+    // ours. One more push settles it against the current cloud copy.
+    const newer = applied > result.version;
     seen = Math.max(seen, result.version);
-    lastPushed = result.json;
+    lastPushed = result.version;
+    if (newer) { schedule(); return true; }
     saveBase(result.cloud);
+    forgetRenames(sent);
     if (result.wallLocal) setRaw(KEYS.wallLocal, "1"); else remove(KEYS.wallLocal);
     const now = localData();
     if (!sameData(now, before)) {
       // The user kept typing while this was sent. What was written is the new common history, so it has to reach
       // this device too, or the next push would read another device's edits in it as deleted here.
-      const next = merge(fingerprint(before), now, result.merged);
+      const next = merge(fingerprint(before), now, result.merged, { renamed: renamed() });
       if (!sameData(next, now)) replaceLocal(next);
       schedule();
       return true;
@@ -212,7 +230,7 @@ onWrite(() => {
   schedule();
 });
 
-function firstSync(remote) {
+function firstSync(remote, version) {
   const owner = getRaw(KEYS.owner) || (loadedUid === uid ? uid : "");
   const local = localData();
   if (owner && owner !== uid) {
@@ -221,13 +239,13 @@ function firstSync(remote) {
     setDirty(false);
   } else if (!owner && hasUserData(local)) {
     // guest data on this device joins the account
-    const merged = hasUserData(remote) ? merge(NO_HISTORY, local, remote) : local;
+    const merged = hasUserData(remote) ? merge(NO_HISTORY, local, remote, { preferRemote: true }) : local;
     if (!sameData(merged, local)) replaceLocal(merged);
     setDirty(true);
   } else if (isDirty() && hasBase() && hasUserData(remote)) {
     // edits this device made before the cloud had them: merge instead of throwing them away.
     // Without a base (a device upgraded from the old app) there is no common history to merge on, so the cloud wins.
-    const merged = merge(loadBase(), local, remote);
+    const merged = merge(loadBase(), local, remote, { renamed: renamed() });
     if (!sameData(merged, local)) replaceLocal(merged);
   } else if (hasUserData(remote)) {
     if (!sameData(remote, local)) replaceLocal(remote);
@@ -239,6 +257,7 @@ function firstSync(remote) {
   // An empty cloud copy is a new account: an empty base, so what any device adds from now on counts as an addition
   // (without a base the cloud would win and could wipe the vacancies a guest brought in).
   saveBase(remote);
+  applied = version;
   ready = true;
   if (isDirty()) schedule();
 }
@@ -250,21 +269,25 @@ function onSnapshot(id, snap) {
   const version = Number(d?.updated) || 0;
   if (!ready) {
     if (snap.metadata.fromCache) return;
+    // another tab signed this account out before this tab's first sync: its data must not come back
+    if ((getObject(KEYS.user).uid || "") !== id) return;
     seen = version;
-    firstSync(readCloud(snap, localData())?.data || {});
+    firstSync(readCloud(snap, localData())?.data || {}, version);
     return;
   }
   if (snap.metadata.fromCache) return;
   if (version && version < seen) return; // older than a copy this device already has
   seen = Math.max(seen, version);
-  if (d && (d.data === lastPushed || d.data === inflight)) return; // the echo of our own write
+  // the echo of our own write, told by its version: another device can write the very same data later
+  if (version && (version === lastPushed || version === inflight)) return;
   const local = localData();
   const copy = readCloud(snap, local);
   if (!copy) { setDirty(true); schedule(); return; } // not a copy at all: this device's data goes up over it
   const remote = copy.data;
-  const next = isDirty() && hasBase() ? merge(loadBase(), local, remote) : remote;
+  const next = isDirty() && hasBase() ? merge(loadBase(), local, remote, { renamed: renamed() }) : remote;
   if (!sameData(next, local)) replaceLocal(next);
   saveBase(remote);
+  applied = version;
   if (isDirty()) schedule();
 }
 
@@ -286,7 +309,7 @@ export function stopSync() {
   again = false;
   uid = null;
   ready = false;
-  seen = 0;
+  seen = applied = lastPushed = inflight = 0;
 }
 
 // Sends pending changes now, waiting at most a few seconds (offline the write would wait forever).
