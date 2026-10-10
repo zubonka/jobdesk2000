@@ -3,7 +3,7 @@
 import { idToken } from "./auth.js";
 import { sleep } from "../core/dom.js";
 
-const BUSY = "Сервіс зараз зайнятий ✦ спробуй ще раз за хвилину.";
+export const BUSY = "Сервіс зараз зайнятий ✦ спробуй ще раз за хвилину.";
 // On a stalled connection the Firebase SDK may never finish loading; the request must not wait for it forever.
 const TOKEN_WAIT_MS = 8000;
 // shortest pasted vacancy text the server analyses (netlify/functions/analyze-vacancy.js, MIN_TEXT)

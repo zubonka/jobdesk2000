@@ -9,7 +9,7 @@ import { getCV, hasCV, cvWordCount, setCV, clearCV, persona, MIN_CV_CHARS } from
 import { specialtyName } from "../content/phrases.js";
 import { fairyName } from "../fairy/store.js";
 import { paintFairy, POSE } from "../fairy/render.js";
-import { analyzeProfile, writeLetter, reviseLetter } from "../services/api.js";
+import { analyzeProfile, writeLetter, reviseLetter, BUSY } from "../services/api.js";
 import { pdfToText } from "../services/pdf.js";
 import { onOpen } from "../ui/windows.js";
 import { say } from "../ui/clippy.js";
@@ -20,6 +20,7 @@ const WRITING = "Фея пише ✦...";
 const messages = []; // { role: "assistant" | "user" | "letter", text }
 let draft = null;  // the latest letter and the request that wrote it: { letter, request }
 let busy = false;
+let cvTicket = 0; // grows with every CV change, so a PDF still being read never replaces a newer CV
 
 const collapseSpaces = (text) => text.replace(/[ \t]+/g, " ").trim();
 
@@ -62,13 +63,15 @@ async function readPdf() {
   const input = byId("cv-file");
   const file = input.files[0];
   if (!file) return;
+  const ticket = ++cvTicket;
   cvNote(html`<b>Читаю резюме...</b>`);
   try {
     const text = await pdfToText(file);
+    if (ticket !== cvTicket) return; // a CV was pasted or removed meanwhile
     if (text.length < MIN_CV_CHARS) cvNote(html`<b>Не зчиталось.</b> Схоже, це скан.`);
     else if (!acceptCV(text)) renderCV();
   } catch (err) {
-    cvNote(html`<b>Помилка PDF.</b>`);
+    if (ticket === cvTicket) cvNote(html`<b>Помилка PDF.</b>`);
   } finally {
     input.value = ""; // choosing the same file again must fire "change" again
   }
@@ -115,7 +118,7 @@ function messageHtml(m, idx) {
   if (m.role === "letter") {
     return html`<div class="chat-letter-wrap"><button type="button" class="letter-copy" data-idx="${idx}" title="Копіювати лист">⧉ копіювати</button><div class="chat-letter">${m.text}</div></div>`;
   }
-  return html`<div class="chat-msg ${m.role === "user" ? "me" : "fairy"}"><span class="b">${m.text}</span></div>`;
+  return html`<div class="chat-msg ${m.role === "user" ? "me" : "fairy"}" data-msg="${idx}"><span class="b">${m.text}</span></div>`;
 }
 
 function renderChat() {
@@ -180,9 +183,11 @@ function startChat() {
 
 /* ----- writing and rewriting ----- */
 
+// The countdown changes only its own bubble: a reader scrolled up or selecting text in an earlier letter keeps both.
 function showProgress(typing, text) {
   typing.text = text;
-  renderChat();
+  const bubble = byId("cl-out").querySelector(`[data-msg="${messages.indexOf(typing)}"] .b`);
+  if (bubble) bubble.textContent = text; else renderChat();
   setStatus(text);
 }
 
@@ -217,8 +222,10 @@ async function askFairy({ typing, call, reply, status, fail }) {
     setStatus(status);
     return text;
   } catch (err) {
-    replaceMessage(pending, { role: "assistant", text: fail + err.message });
-    setStatus("✕ " + err.message);
+    // still busy after the automatic retries: the server's "trying again" is no longer true
+    const message = err.retry ? BUSY : err.message;
+    replaceMessage(pending, { role: "assistant", text: fail + message });
+    setStatus("✕ " + message);
     if (err.auth) emit("auth:open", "login");
     return null;
   } finally {
@@ -226,24 +233,25 @@ async function askFairy({ typing, call, reply, status, fail }) {
   }
 }
 
-function letterRequest(job) {
+function letterRequest(job, wish) {
   return {
     job: { company: job.company, title: job.title, field: job.field, emp: job.emp, loc: job.loc, salary: job.salary },
     cv: getCV(),
     lang: byId("cl-lang").value,
     tone: byId("cl-tone").value,
-    focus: byId("cl-focus").value.trim(),
+    focus: [byId("cl-focus").value.trim(), wish].filter(Boolean).join("; "),
     gender: gender(),
     name: userName(),
   };
 }
 
-async function generateLetter() {
+// wish: what the user wrote in the chat before there was a letter to revise
+async function generateLetter(wish) {
   if (busy) return;
   const job = getJob(byId("cl-job").value);
   if (!job) { say("Спершу додай вакансію ✦", POSE.idle, 7000); return; }
   if (!hasCV()) { say("Спершу завантаж резюме (PDF) ✦", POSE.idle, 8000); return; }
-  const request = letterRequest(job);
+  const request = letterRequest(job, typeof wish === "string" ? wish : "");
   showEditRow();
   const letter = await askFairy({
     typing: "Пишу листа під " + job.company + " ✦...",
@@ -265,11 +273,12 @@ async function sendEdit() {
   if (!edit) return;
   input.value = "";
   addMessage("user", edit);
-  if (!draft) return generateLetter();
+  if (!draft) return generateLetter(edit);
+  if (!hasCV()) { say("Спершу завантаж резюме (PDF) ✦", POSE.idle, 8000); return; } // a removed CV is never sent again
   const { letter, request } = draft;
   const revised = await askFairy({
     typing: "Переписую ✦...",
-    call: () => reviseLetter({ ...request, letter, request: edit }),
+    call: () => reviseLetter({ ...request, cv: getCV(), letter, request: edit }),
     reply: "Готово ✦ ось оновлений варіант:",
     status: "Оновлено ✦",
     fail: "Не вийшло ✦ ",
@@ -288,13 +297,13 @@ export function initMessenger() {
   byId("cv-paste-toggle").addEventListener("click", togglePasteBox);
   byId("cv-paste-save").addEventListener("click", savePastedCV);
 
-  byId("cl-gen").addEventListener("click", generateLetter);
+  byId("cl-gen").addEventListener("click", () => generateLetter());
   byId("cl-send").addEventListener("click", sendEdit);
   byId("cl-edit").addEventListener("keydown", (e) => { if (e.key === "Enter") sendEdit(); });
   byId("cl-out").addEventListener("click", onChatClick);
 
   onOpen("messenger", startChat);
-  on("cv", renderCV);
+  on("cv", () => { cvTicket++; renderCV(); });
   on("jobs", onJobsChanged);
   on("fairy", paintAvatar);
 

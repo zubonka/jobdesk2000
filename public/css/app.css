@@ -202,7 +202,7 @@ label.fl{font-size:.875rem; color:var(--dim); display:block; margin-bottom:.25re
 .cv-paste textarea{resize:vertical;}
 .form-grid{display:grid; grid-template-columns:1fr 1fr; gap:.5rem; margin-bottom:.625rem;}
 .form-grid .span-all{grid-column:1/-1;}
-.chat-log{background:var(--field); border:.125rem solid var(--field-br); border-radius:.5rem; padding:.625rem; max-height:21.25rem; overflow-y:auto; margin-bottom:.5rem; scroll-behavior:smooth;}
+.chat-log{background:var(--field); border:.125rem solid var(--field-br); border-radius:.5rem; padding:.625rem; max-height:21.25rem; overflow-y:auto; margin-bottom:.5rem;} /* no smooth scrolling: a running scroll to a new message must not pull a reader who scrolled up */
 #cl-out{margin-top:.5rem; min-height:3.75rem;}
 .chat-letter-wrap{position:relative; margin:.375rem 0;}
 .letter-copy{position:absolute; top:.375rem; right:.375rem; z-index:2; font-size:.75rem; padding:.25rem .5rem; border:.0625rem solid var(--accent); background:var(--win-bg); color:var(--accent); border-radius:.375rem; cursor:pointer; font-family:inherit;}

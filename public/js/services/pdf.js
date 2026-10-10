@@ -4,29 +4,35 @@ const CDN = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
 const INTEGRITY = "sha512-q+4liFwdPC/bNdhUpZx6aXDx/h77yEQtn4I1slHydcbZK34nLaR3cAeYSJshoxIOq3mjEf7xJE8YWIUHMn+oCQ==";
 const WORKER_INTEGRITY = "sha512-BbrZ76UNZq5BhH7LL7pn9A4TKQpQeNCHOo65/akfelcIBbcVvYWOFQKPXIrykE3qZxYjmDX573oa4Ywsc7rpTw==";
 
+const LOAD_TIMEOUT_MS = 30000; // a stalled CDN must end in an error, not in "Читаю резюме..." for ever
+
 let loading = null;
+
+const timeout = (promise, ms, what) => Promise.race([
+  promise,
+  new Promise((resolve, reject) => setTimeout(() => reject(new Error(what + " timed out")), ms)),
+]);
 
 // The worker runs with this site's origin, so it is checked like the main script: fetched with its SRI hash
 // and handed to pdf.js as a blob: URL (a plain workerSrc would be importScripts()-ed without any check).
 async function verifiedWorkerUrl() {
-  const res = await fetch(CDN + "pdf.worker.min.js", { integrity: WORKER_INTEGRITY, mode: "cors", credentials: "omit" });
+  const res = await fetch(CDN + "pdf.worker.min.js", { integrity: WORKER_INTEGRITY, mode: "cors", credentials: "omit", signal: AbortSignal.timeout(LOAD_TIMEOUT_MS) });
   if (!res.ok) throw new Error("pdf.js worker HTTP " + res.status);
   return URL.createObjectURL(new Blob([await res.text()], { type: "text/javascript" }));
 }
 
 function loadScript() {
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  const script = document.createElement("script");
+  const loaded = new Promise((resolve, reject) => {
     script.src = CDN + "pdf.min.js";
     script.integrity = INTEGRITY;
     script.crossOrigin = "anonymous";
     script.addEventListener("load", () => resolve(window.pdfjsLib));
-    script.addEventListener("error", () => {
-      script.remove();
-      reject(new Error("pdf.js failed to load"));
-    });
+    script.addEventListener("error", () => reject(new Error("pdf.js failed to load")));
     document.head.appendChild(script);
   });
+  return timeout(loaded, LOAD_TIMEOUT_MS, "pdf.js").catch((err) => { script.remove(); throw err; });
 }
 
 function loadPdfJs() {

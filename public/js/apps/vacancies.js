@@ -220,9 +220,14 @@ function offerPaste(url) {
   byId("paste-box").hidden = false;
 }
 
+// Clears a field after its vacancy was added, unless the user typed the next one there meanwhile.
+const clearIfStill = (id, value) => { if (byId(id).value.trim() === value) byId(id).value = ""; };
+
 async function addFromUrl() {
-  const url = byId("add-url").value.trim();
-  if (!url) { setMsg("Встав посилання ✦"); return; }
+  const typed = byId("add-url").value.trim();
+  if (!typed) { setMsg("Встав посилання ✦"); return; }
+  const link = normalizeUrl(typed);
+  const url = link === "#" ? typed : link; // "site.com/job" is a link too; anything else the server explains
   setMsg("Фея аналізує вакансію ✦...");
   let d;
   try {
@@ -233,20 +238,22 @@ async function addFromUrl() {
     return;
   }
   if (!addAnalyzed(d, url)) return;
-  byId("add-url").value = "";
+  clearIfStill("add-url", typed);
   say("Проаналізувала й додала " + companyOr(d) + " ✦", POSE.happy, 7000);
 }
 
 async function addFromText() {
   const text = byId("a-paste").value.trim();
   if (text.length < MIN_VACANCY_TEXT) { setMsg("Встав більше тексту вакансії ✦"); return; }
+  const link = byId("a-paste-url").value.trim(); // the link that belongs to this text, whatever is typed meanwhile
   setMsg("Фея аналізує текст ✦...");
   let d;
   try { d = await analyzeWith(byId("a-paste-go"), { text }); } catch (err) { setMsg("Не вдалося розібрати ✦ " + err.message); return; }
-  if (!addAnalyzed(d, byId("a-paste-url").value)) return;
-  byId("a-paste").value = "";
-  byId("a-paste-url").value = "";
-  byId("paste-box").hidden = true;
+  if (!addAnalyzed(d, link)) return;
+  const untouched = byId("a-paste").value.trim() === text;
+  clearIfStill("a-paste", text);
+  clearIfStill("a-paste-url", link);
+  if (untouched) byId("paste-box").hidden = true;
   say("Розібрала текст і додала " + companyOr(d) + " ✦", POSE.happy, 7000);
 }
 

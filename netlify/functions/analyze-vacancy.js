@@ -10,6 +10,9 @@ const NO_KEYS = "Не налаштовано ключ (GEMINI_API_KEY або GRO
 const MINUTE = 60 * 1000;
 // shortest pasted vacancy or CV worth analysing; the client checks the same limit (public/js/services/api.js)
 const MIN_TEXT = 40;
+// letters and digits a text needs to be a vacancy or a CV at all (emoji, arrows and zero-width spaces do not count)
+const MIN_LETTERS = 20;
+const letters = (t) => (t.match(/[\p{L}\p{N}]/gu) || []).length;
 
 const EMP_OPTIONS = ["Full-time", "Part-time", "Project / Контракт", "Стажування", "Freelance", "Outsource"];
 const LOC_OPTIONS = ["Віддалено", "Гібрид", "Офіс"];
@@ -142,7 +145,7 @@ async function analyzeProfile(event, cors, body, started) {
   if (!user) return reply(cors, 401, { error: "Увійди, щоб фея проаналізувала профіль ✦", auth: true });
   if (!rateLimit("profile:" + user.uid, 20, 60 * MINUTE)) return reply(cors, 429, { error: "Забагато запитів ✦ спробуй пізніше" });
   const src = oneLine(str(body.cv || body.text, 20000)).slice(0, 6000);
-  if (src.length < MIN_TEXT) return reply(cors, 200, { error: "замало тексту" });
+  if (src.length < MIN_TEXT || letters(src) < MIN_LETTERS) return reply(cors, 200, { error: "замало тексту" });
 
   let r;
   try {
@@ -168,6 +171,7 @@ async function analyzeVacancy(event, cors, body, started) {
 
   if (pasted.length >= MIN_TEXT) {
     text = oneLine(pasted).slice(0, 8000);
+    if (letters(text) < MIN_LETTERS) return reply(cors, 400, { error: "Встав більше тексту вакансії ✦" });
   } else {
     const url = str(body.url, 2000);
     if (!/^https?:\/\//i.test(url)) return reply(cors, 400, { error: "Дай посилання або встав текст вакансії" });
