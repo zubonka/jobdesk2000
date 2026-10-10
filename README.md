@@ -8,6 +8,20 @@ The front end is plain ES modules served as they are: no framework, no build ste
 Two Netlify functions do the AI work. Guests keep everything in the browser; signed-in users
 (Firebase Auth) also get a copy in Firestore.
 
+## What it does
+
+- Vacancies by link, pasted text or by hand; the AI fills in company, title, salary and format.
+  Search (the `/` key), filters, priorities, deadline badges and a reminder from the fairy three days ahead.
+- Statuses with dates and notes; statistics with a funnel (applied, interviews, offers) and the last 8 weeks.
+- Cover letters from the CV (PDF or pasted text) in a chat that rewrites them on request (signed-in users).
+- A desktop of draggable, minimisable windows, tile mode, light and dark themes, a fairy to choose and colour,
+  a wallpaper, README.TXT with the how-to, undo after a removal or a reset, confetti on an offer.
+- START menu: a copy of the data (JSON) and its restore, the vacancies as a CSV table for Excel or Sheets.
+- Works offline once visited and installs as an app (`public/sw.js`, `site.webmanifest`).
+- Another site can hand a vacancy over with a link: `https://jobdeck2000.netlify.app/?add=<vacancy url>`
+  opens the Vacancies window with the link filled in (one tap on «✦ Аналіз»). An installed app also takes
+  links from the phone's share sheet (`share_target`: `?url=` or `?text=`).
+
 ## Repository layout
 
 ```
@@ -26,6 +40,7 @@ public/                        the site, published as is
     data/statuses.js           status keys and their gendered labels
     data/jobs.js               the vacancy list, its storage format and every change to it
     data/profile.js            CV text and what the fairy learned about the user's profession
+    data/timeline.js           dates: days to a deadline, applications per week, Ukrainian plural forms
     content/phrases.js         everything the fairy says on her own
     fairy/art.js               fairy SVGs: two types, three poses each
     fairy/store.js             the chosen fairy type, name and colours
@@ -33,7 +48,10 @@ public/                        the site, published as is
     services/api.js            calls to the Netlify functions, with the Firebase ID token
     services/auth.js           sign-up, sign-in (email or Google), sign-out
     services/firebase.js       loads the Firebase SDK on demand
-    services/sync.js           mirrors the synced keys to Firestore users/<uid>
+    services/sync.js           mirrors the synced keys to Firestore users/<uid> (transactions, one push at a time)
+    services/sync-merge.js     the three-way merge behind it, free of Firebase so it is unit-tested
+    services/backup.js         the JSON copy of the data, its restore and the CSV table
+    services/offline.js        registers the service worker (public/sw.js)
     services/pdf.js            PDF text extraction; pdf.js comes from the CDN on first use
     ui/windows.js              window manager and the APPS registry
     ui/icons.js                desktop icons on a grid, draggable on desktop
@@ -41,12 +59,17 @@ public/                        the site, published as is
     ui/dialogs.js              modal dialogs, guest gate, first-visit welcome
     ui/clippy.js               the fairy in the corner: bubble, reactions, idle phrases
     ui/theme.js                light and dark theme
+    ui/confirm.js              "are you sure?" in the app's own style
+    ui/toast.js                short notices above the taskbar, with an optional action (undo)
+    ui/confetti.js             the star burst on an offer (skipped under reduced motion)
     apps/vacancies.js          Vacancies window: add by link, pasted text or by hand; filters; cards
     apps/edit-vacancy.js       edit and add dialog, with an AI refill from pasted text
     apps/stats.js              Statistics window: counters and the pipeline bar
     apps/messenger.js          fairy messenger: the CV and the cover letter chat
     apps/fairy.js              My Fairy window: type, name, colours, wallpaper
     apps/auth-dialog.js        sign-in dialog and sign-out
+    apps/backup.js             the START menu's copy, restore and table commands
+  sw.js                        service worker: network first for the app, cache first for pinned CDN files
 netlify/
   functions/analyze-vacancy.js vacancy link or text -> fields; mode "profile": CV -> role and phrases
   functions/cover-letter.js    writes and revises cover letters (signed-in users only)
@@ -60,6 +83,8 @@ firebase.json                  Firebase CLI config: the rules file and the local
 scripts/dev-server.js          local server: static files, functions, headers, AI mock, emulator switch
 tests/web/                     unit tests for the browser modules (node:test)
 tests/functions/               unit tests for the functions (node:test)
+e2e/                           Playwright browser tests, run in Docker (see "Browser tests")
+design/readme-icon/            generator and options of the README.TXT desktop icon
 docker-compose.yml             app, test, netlify and firebase (emulators) services
 docker/firebase/Dockerfile     Firebase Auth + Firestore emulators (Java 21, pinned firebase-tools)
 ```
@@ -124,6 +149,28 @@ service runs a pinned `netlify-cli build --offline`, which bundles every functio
 `.netlify/functions/*.zip`; a require that does not resolve fails that step. npm's cache is kept in the
 `npm-cache` volume.
 
+## Browser tests
+
+Playwright in Docker: the container starts its own dev server with the AI mock and uses the Firebase
+emulators of the `firebase` service, so nothing touches the real project.
+
+```
+docker compose --profile e2e run --rm e2e                                   # everything, about 35 minutes
+E2E_ARGS="--project=flows-desktop --reporter=line" docker compose --profile e2e run --rm e2e
+E2E_WORKERS=1 E2E_ARGS="tests/attack-sync.spec.mjs --project=flows-desktop" docker compose --profile e2e run --rm e2e
+```
+
+- `tests/flows.spec.mjs`: user journeys on desktop Chromium and on an iPhone 11 (WebKit).
+- `tests/layout.spec.mjs`: every screen on 17 devices, from an iPhone 11 to a 4K monitor, checked for sideways
+  scrolling, overflowing or overlapping parts, small text, small touch targets and the fairy covering controls.
+  Screenshots land in `e2e/test-results/screens/<device>/`.
+- `tests/attack-*.spec.mjs`: edge cases by area (stored data, windows and keyboard, cloud sync with two
+  devices, the AI flows, extreme content and text sizes). Each test states the correct behaviour.
+- Arguments in `E2E_ARGS` are split on spaces inside the container: use `--grep word.word`, not quotes.
+- The container mounts the repository: do not edit the app while a run is going.
+- The AI mock's mode is per browser context (the `jd_mock` cookie, see `setMock()` in `e2e/tests/helpers.mjs`).
+- `E2E_WORKERS` (default 3) and the 150 s test timeout suit Docker Desktop's small VM.
+
 ## Environment variables
 
 Set them in Netlify (Site configuration -> Environment variables) or locally in `.env`.
@@ -174,6 +221,9 @@ formats are shared with the original single-file app and with existing cloud cop
 | `jobdesk2000_welcomed` | `"1"` once the welcome dialog was closed |
 | `jd2000_gender` | `{ <uid>: "f" \| "m" \| "n" }`, this device only |
 | `jd2000_owner` | the uid whose data this device holds, this device only |
+| `jd2000_sync_base` | fingerprint of the last copy this device and the cloud agreed on (hashes per key and per vacancy field) |
+| `jd2000_sync_dirty` | `"1"` while local changes have not reached the cloud |
+| `jd2000_wall_local` | `"1"` when the wallpaper is left out of the cloud copy for size |
 
 - A vacancy's id is `<company>|<title>`. It keys the progress map, so renaming a vacancy moves its
   progress and collapsed state to the new id.
@@ -181,9 +231,15 @@ formats are shared with the original single-file app and with existing cloud cop
   A label of any gender reads back as the same status, and the next save writes the labels in the user's current form.
 - Cloud copy: for a signed-in user every `jobdesk2000*` key is mirrored to the Firestore document
   `users/<uid>`: field `data` holds a JSON string of `{ key: raw value }`, field `updated` a timestamp in ms.
-  The `jd2000_*` keys stay on the device. The wallpaper is left out when the document would pass about 900 KB.
-  On sign-in the cloud copy wins, vacancies created here as a guest are merged in, and a device that holds
-  another account's data never uploads it.
+  The `jd2000_*` keys stay on the device. Every write is a Firestore transaction: when another device changed
+  the copy meanwhile, the two are merged against their common history (`jd2000_sync_base`), key by key and, for
+  the vacancies, field by field; a rename on one side carries the other side's edits over. Edits made offline,
+  before the sync started or in a tab closed at once stay marked (`jd2000_sync_dirty`) until the cloud has them.
+- Size: the copy is kept under 900 KB in UTF-8 bytes (Firestore's limit is 1 MiB; Cyrillic takes two bytes
+  a letter). A new wallpaper is compressed to at most 600 KB; when notes push the copy past the limit, the
+  wallpaper stays on its device and the copy says so (`jd2000_wall_omitted`), so other devices keep theirs.
+- On sign-in vacancies created here as a guest join the account, and a device that holds another account's data
+  never uploads it. Signing out removes the account's data from the device only when the cloud has all of it.
 - `tests/web/jobs.test.mjs` pins these formats against the original app.
 
 ## Where the texts live
@@ -265,6 +321,19 @@ Two Netlify functions (Lambda-style handlers, CommonJS). The shared code in `net
   40 letters per hour per user. CORS allows only the origins listed above; any other origin gets 403.
 
 ## Owner checklist (outside the code)
+
+- **Content policy**: `netlify.toml` sends a full `Content-Security-Policy-Report-Only`: it blocks nothing and
+  only reports to the browser console. The E2E journeys check that the app causes no reports. After a while in
+  production with no `[Report Only]` messages in the console, move its value into `Content-Security-Policy`.
+  The inline theme script in `index.html` is allowed by its hash: a change to that script needs a new hash.
+- **Texts to review** (left as they were, since texts were not to be changed): the «Умови» paragraph in
+  «Про застосунок» says the data stays in the browser, while signed-in users now also have a cloud copy.
+- **Google Analytics**: `measurementId` is in the Firebase config, but the original app never started
+  Analytics, so nothing was ever collected. Decide whether it is wanted (with a consent notice) or drop the id.
+- **Authorized domains**: remove the old `myjobdeck2000.netlify.app` (and `jobdesk2000.web.app` if unused) from
+  Firebase Authentication -> Settings -> Authorized domains before that Netlify site is ever deleted.
+- **README.TXT icon**: `design/readme-icon/out/overview.png` shows three options next to the other icons;
+  the notebook (c) is in use.
 
 - **Firestore rules**: `firestore.rules` lets each user read and write only their own document `users/<uid>`
   with the two fields the app writes, and denies everything else. The live project already refuses
