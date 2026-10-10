@@ -5,7 +5,7 @@ import { SKIN, fairyColors, fairyType } from "./store.js";
 
 export const POSE = { idle: 0, happy: 1, sad: 2 };
 
-export function fairySvg(type, pose = POSE.idle, size = "100%") {
+function fairySvg(type, pose = POSE.idle, size = "100%") {
   const art = FAIRY_ART[type] && FAIRY_ART[type][pose];
   if (!art) return "";
   return `<svg viewBox="${art.viewBox}" width="${size}" height="${size}" aria-hidden="true" focusable="false">${art.body}</svg>`;

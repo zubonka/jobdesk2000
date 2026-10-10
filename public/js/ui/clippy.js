@@ -18,7 +18,7 @@ ding.preload = "none";
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 
-export function playDing() {
+function playDing() {
   try { ding.currentTime = 0; ding.play().catch(() => {}); } catch (e) { /* autoplay blocked */ }
 }
 

@@ -25,14 +25,13 @@ let zTop = 100;
 let tileMode = false;
 const openHooks = {};
 
-export const winEl = (app) => byId("win-" + app);
+const winEl = (app) => byId("win-" + app);
 export const isMobile = () => window.matchMedia(MOBILE).matches;
 export const uiScale = () => (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16) / 16;
 // open: the window has a taskbar button; minimised: open, but hidden until its button brings it back
 export const isOpen = (app) => !!winEl(app)?.classList.contains("open");
 export const isMinimized = (app) => !!winEl(app)?.classList.contains("minimized");
 export const isFocused = (app) => !!winEl(app)?.classList.contains("focused");
-export const inTileMode = () => tileMode;
 const desktop = () => byId("desktop");
 const canDrag = () => !isMobile() && !tileMode;
 
@@ -79,8 +78,6 @@ export function closeWin(app) {
   emit("windows");
 }
 
-export const toggleWin = (app) => (isOpen(app) ? closeWin(app) : openWin(app));
-
 // Centre a newly opened window, cascading a little so several windows do not stack exactly.
 function placeNew(w) {
   if (isMobile()) return;
@@ -98,7 +95,7 @@ function placeNew(w) {
 
 // Pulls a window back when it would sit under the taskbar or off the side (content grew, viewport shrank).
 // A window resized bigger than the screen it is now on shrinks back, so its ✕ and grip stay reachable.
-export function keepInView(w) {
+function keepInView(w) {
   if (!canDrag() || !w.classList.contains("open") || w.classList.contains("minimized")) return;
   const k = uiScale(), edge = EDGE * k;
   const desk = desktop();
@@ -164,7 +161,7 @@ function makeResizable(w) {
 }
 
 // Tile mode lays every available window out in a grid instead of floating windows.
-export function setTileMode(on) {
+function setTileMode(on) {
   tileMode = on;
   const wrap = byId("tilewrap");
   document.body.classList.toggle("tile-mode", on);

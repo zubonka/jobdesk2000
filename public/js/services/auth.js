@@ -6,8 +6,6 @@ import { startSync, stopSync, flushSync, forgetAccountData } from "./sync.js";
 import { emit } from "../core/events.js";
 import { currentUser, isAuthed, setUser, clearUser, genderFor, hasGenderFor, rememberGender } from "../data/user.js";
 
-export const firebaseReady = () => !!firebaseNow();
-
 // Set while signOutUser runs: Firebase reports the sign-out through onAuthStateChanged too, and that path must
 // not start a second reload while signOutUser is still cleaning up.
 let signingOut = false;

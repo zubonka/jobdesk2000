@@ -1,7 +1,6 @@
 // DOM helpers shared by every module.
 
 export const byId = (id) => document.getElementById(id);
-export const qs = (sel, root = document) => root.querySelector(sel);
 export const qsa = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 const ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };

@@ -17,11 +17,6 @@ export function setUser(next) {
   emit("user");
 }
 
-export function updateUser(patch) {
-  if (!user) return;
-  setUser({ ...user, ...patch });
-}
-
 export function clearUser() {
   user = null;
   remove(KEYS.user);

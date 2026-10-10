@@ -13,7 +13,7 @@ export const NONE = "—";
 export const DEFAULT_TITLE = "Вакансія";
 
 // The id is part of the stored progress map, so it stays "<company>|<title>".
-export const jobId = (company, title) => company + "|" + title;
+const jobId = (company, title) => company + "|" + title;
 
 let jobs = [];
 let collapsed = {};

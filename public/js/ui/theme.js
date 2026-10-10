@@ -6,9 +6,7 @@ import { byId } from "../core/dom.js";
 
 let theme = "light";
 
-export const currentTheme = () => theme;
-
-export function applyTheme(next) {
+function applyTheme(next) {
   theme = next === "dark" ? "dark" : "light";
   const root = document.documentElement;
   root.classList.toggle("theme-dark", theme === "dark");

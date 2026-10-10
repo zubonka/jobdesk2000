@@ -33,7 +33,7 @@ public/                        the site, published as is
   favicon.ico, site.webmanifest, robots.txt, sitemap.xml
   js/
     main.js                    entry point: loads data, starts the shell and the apps, then Firebase
-    core/dom.js                byId/qs/qsa, html`` (escapes every value), raw, setHtml, safeUrl, todayISO
+    core/dom.js                byId/qsa, html`` (escapes every value), raw, setHtml, safeUrl, todayISO
     core/events.js             app-wide on/emit; the event names are listed at the top
     core/storage.js            localStorage keys and safe access; reports writes to cloud sync
     data/user.js               the signed-in user as the UI sees it, gv() for gendered word forms

@@ -52,7 +52,7 @@ function place(ic, cell) {
 
 // Places the icons for the current screen. Only a drag saves a position: a narrow moment (a snapped browser,
 // a rotated tablet) moves icons into view without forgetting where the person put them.
-export function layoutIcons() {
+function layoutIcons() {
   const used = new Set();
   if (isMobile()) {
     const { cols } = limits();
