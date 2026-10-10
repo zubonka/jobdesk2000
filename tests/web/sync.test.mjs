@@ -505,5 +505,141 @@ test("changes put aside that did not fit when their account came back are not lo
   b.deliver();
   await b.sync.flushSync();
   assert.ok((store.getItem("jd2000_stash") || "").includes("A Unsent Co"), "A's unsent vacancy still waits on the device");
+  assert.ok(JSON.parse(store.getItem("jd2000_stash")).uA.data[PROGRESS].includes("x".repeat(3000)), "with its note, the part that did not fit");
   assert.ok(!JSON.stringify(cloud.data("uB")).includes("A Unsent"));
 });
+
+test("changes put aside that came back in part are not put aside again over newer edits", async () => {
+  const CV = "jobdesk2000_cv_v1";
+  const startA = { ...data([job("A Synced Co")], { "A Synced Co|Dev": fresh() }, "uA"), [CV]: "CV v0 ".repeat(20) };
+  startCloud(startA, "uA");
+  startCloud(data([job("B Co")], { "B Co|Dev": fresh() }, "uB"), "uB");
+  const keptData = { ...data([job("A Synced Co"), job("A Unsent Co")], { "A Synced Co|Dev": fresh(), "A Unsent Co|Dev": fresh("x".repeat(3000)) }, "uA"), [CV]: "CV v1 ".repeat(20) };
+  const store = new QuotaStorage();
+  const page = await device("page", { store, seed: { jd2000_stash: JSON.stringify({ uA: { data: keptData, base: fingerprint(startA) } }) } });
+  page.users.setUser({ name: "Андрій", email: "a@example.com", gender: "m", uid: "uA" });
+  store.quota = store.used() + 2500; // the CV fits back in, the long note does not
+  await page.sync.startSync("uA");
+  page.deliver();
+  await page.sync.flushSync();
+  assert.equal(cloud.data("uA")[CV], "CV v1 ".repeat(20), "what came back goes up");
+
+  const fromCloud = cloud.data("uA"); // A's phone replaces the CV later
+  const phone = await device("phone", { seed: { ...fromCloud, jd2000_owner: "uA", jd2000_sync_base: JSON.stringify(fingerprint(fromCloud)) } });
+  await phone.sync.startSync("uA");
+  phone.deliver();
+  phone.store.setItem(CV, "CV v2 ".repeat(20));
+  phone.jobs.setJobField("A Synced Co|Dev", "note", "phone");
+  await phone.sync.flushSync();
+  page.deliver();
+  page.users.setUser({ name: "Богдана", email: "b@example.com", gender: "f", uid: "uB" });
+  page.sync.stopSync();
+  store.quota = Infinity;
+  const b = await device("pageB", { store });
+  await b.sync.startSync("uB");
+  b.deliver();
+  await b.sync.flushSync();
+  b.sync.stopSync();
+  b.sync.forgetAccountData();
+  b.users.clearUser();
+  const back = await device("pageA2", { store });
+  back.users.setUser({ name: "Андрій", email: "a@example.com", gender: "m", uid: "uA" });
+  await back.sync.startSync("uA");
+  back.deliver();
+  await back.sync.flushSync();
+  assert.equal(cloud.data("uA")[CV], "CV v2 ".repeat(20), "the phone's newer CV stays");
+  assert.equal(progress(cloud.data("uA"))["A Unsent Co|Dev"].note, "x".repeat(3000), "and the part that did not fit arrives at last");
+});
+
+/* ----- the vacancy list and its progress, written as one record ----- */
+
+const LONG_NOTE = "опис вакансії, вимоги, умови. ".repeat(40);
+const syncedIn = (store) => Object.fromEntries([...Array(store.length).keys()].map((i) => store.key(i)).filter((k) => k.startsWith("jobdesk2000")).map((k) => [k, store.getItem(k)]));
+// room for the cloud's longer vacancy list and the history that goes with it, not for the progress with a long note
+const roomForListOnly = (store) => {
+  const list = cloud.data("u1")[JOBS];
+  const base = JSON.stringify(fingerprint({ ...syncedIn(store), [JOBS]: list })).length - store.getItem("jd2000_sync_base").length;
+  return list.length - store.getItem(JOBS).length + base + 60;
+};
+
+// a laptop on a size-limited storage, then the phone adds vacancy Gamma with a long note
+async function phoneAddsGamma(start) {
+  startCloud(start);
+  const phone = await synced("phone", start);
+  const store = new QuotaStorage();
+  const laptop = await synced("laptop", start, { store });
+  phone.jobs.addJob({ company: "Gamma", title: "Dev" });
+  phone.jobs.setJobField("Gamma|Dev", "status", "applied");
+  phone.jobs.setJobField("Gamma|Dev", "note", LONG_NOTE);
+  await phone.sync.flushSync();
+  return { phone, laptop, store };
+}
+
+function assertGammaWhole(where, d, date) {
+  const g = progress(d)["Gamma|Dev"];
+  assert.ok(g, where + ": Gamma has its progress");
+  assert.match(g.status, /^Подал/, where);
+  assert.equal(g.date, date, where);
+  assert.equal(g.note, LONG_NOTE, where);
+}
+
+for (const typing of [false, true]) {
+  test(`another device's new vacancy keeps its status, date and note when only its list entry would fit here (typing on: ${typing})`, async () => {
+    const start = data([job("Acme"), job("Beta")], { "Acme|Dev": fresh(), "Beta|Dev": fresh() });
+    const { phone, laptop, store } = await phoneAddsGamma(start);
+    const date = progress(cloud.data("u1"))["Gamma|Dev"].date;
+    laptop.jobs.setJobField("Acme|Dev", "note", "laptop");
+    if (typing) {
+      const release = cloud.holdCommit(laptop.id);
+      const pushing = laptop.sync.flushSync();
+      await sleep(20); // the transaction ran, its answer is slow
+      laptop.jobs.setJobField("Acme|Dev", "note", "laptop, typing on");
+      store.quota = store.used() + roomForListOnly(store);
+      release();
+      await pushing;
+    } else {
+      store.quota = store.used() + roomForListOnly(store);
+      assert.equal(await laptop.sync.flushSync(), true, "the device settles");
+    }
+    assert.ok(!companies(laptop.local()).includes("Gamma"), "the list is not taken without its progress");
+    store.quota = Infinity; // space is freed later
+    laptop.jobs.setJobField("Beta|Dev", "note", "unrelated laptop edit");
+    await laptop.sync.flushSync();
+    await laptop.sync.flushSync();
+    phone.deliver();
+    assertGammaWhole("cloud", cloud.data("u1"), date);
+    assertGammaWhole("phone", phone.local(), date);
+    assertGammaWhole("laptop", laptop.local(), date);
+    assert.equal(progress(cloud.data("u1"))["Acme|Dev"].note, typing ? "laptop, typing on" : "laptop");
+  });
+}
+
+for (const reload of [false, true]) {
+  test(`a guest's join that did not fit keeps the account's values on a vacancy both have (reload: ${reload})`, async () => {
+    startCloud(data([{ ...job("Account Co"), salary: "3000$" }, job("Account Two")],
+      { "Account Co|Dev": { status: "Оффер", date: "2026-09-01", deadline: "", note: "account note" }, "Account Two|Dev": fresh("two") }));
+    const store = new QuotaStorage();
+    const seed = {
+      [JOBS]: JSON.stringify([job("Guest Co"), { ...job("Account Co"), salary: "1000$" }]),
+      [PROGRESS]: JSON.stringify({ "Guest Co|Dev": fresh("guest"), "Account Co|Dev": { status: "Подалася", date: "2026-08-01", deadline: "", note: "guest note" } }),
+      [WALL]: picture("G", 200),
+    };
+    let page = await device("page", { store, seed });
+    page.users.setUser({ name: "Оля", email: "u1@example.com", gender: "f", uid: "u1" });
+    store.quota = store.used() + 40; // the joined list does not fit
+    await page.sync.startSync("u1");
+    page.deliver();
+    if (reload) {
+      page.sync.stopSync(); // closed before the push; room is freed before the next page load
+      store.quota = Infinity;
+      page = await device("page2", { store });
+      await page.sync.startSync("u1");
+      page.deliver();
+    }
+    await page.sync.flushSync();
+    const c = cloud.data("u1");
+    const p = progress(c)["Account Co|Dev"], listed = JSON.parse(c[JOBS]).find((j) => j.company === "Account Co");
+    assert.deepEqual([p.status, p.date, listed.salary], ["Оффер", "2026-09-01", "3000$"]);
+    assert.ok(companies(c).includes("Guest Co"));
+  });
+}

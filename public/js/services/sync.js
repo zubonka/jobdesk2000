@@ -126,6 +126,23 @@ function adoptUser(record) {
   }
 }
 
+// The vacancy list and its progress are one record, as data/jobs.js saves them: a listed vacancy without its progress
+// would read as its status, dates and note cleared. Both are written, or both stay as they were (false).
+const VACANCY_KEYS = [KEYS.jobs, KEYS.progress];
+function writeVacancies(local, next) {
+  const written = [];
+  for (const key of VACANCY_KEYS) {
+    if (key in next && (typeof next[key] !== "string" || next[key] === local[key])) continue;
+    if (!(key in next)) remove(key);
+    else if (!setRaw(key, next[key])) {
+      for (const done of written) { if (local[done] === undefined) remove(done); else setRaw(done, local[done]); }
+      return false;
+    }
+    written.push(key);
+  }
+  return true;
+}
+
 // Makes the local synced keys equal to `next`, without writing anything back to the cloud. False when a value did
 // not fit (a full storage): then the device does not hold `next`, and the caller must not count it as common history.
 function replaceLocal(next) {
@@ -134,11 +151,13 @@ function replaceLocal(next) {
   let stored = true;
   silently(() => {
     for (const key of Object.keys(local)) {
-      if (key === KEYS.user || (key === KEYS.wallpaper && keepWall)) continue;
+      if (key === KEYS.user || VACANCY_KEYS.includes(key) || (key === KEYS.wallpaper && keepWall)) continue;
       if (!(key in next)) remove(key);
     }
+    stored = writeVacancies(local, next); // first: the vacancies matter more than a wallpaper
     for (const [key, value] of Object.entries(next)) {
-      if (key !== KEYS.user && key.startsWith(SYNC_PREFIX) && typeof value === "string" && local[key] !== value) stored = setRaw(key, value) && stored;
+      if (key === KEYS.user || VACANCY_KEYS.includes(key)) continue;
+      if (key.startsWith(SYNC_PREFIX) && typeof value === "string" && local[key] !== value) stored = setRaw(key, value) && stored;
     }
     adoptUser(next[KEYS.user]);
     emit("state"); // stores reload; what they write while reloading is not a user edit
@@ -177,8 +196,9 @@ async function push() {
       sent = renamed();
       const copy = readCloud(snap, before) || { data: {}, raw: null }; // a broken document is written over
       const remote = copy.data;
-      // an empty cloud document is a new account, not "everything was deleted"
-      const merged = hasUserData(remote) ? merge(loadBase(), before, remote, { renamed: sent }) : { ...before };
+      // An empty cloud document is a new account, not "everything was deleted". Without history (a guest's join that
+      // did not fit), the account's values win where both have one, as in firstSync.
+      const merged = hasUserData(remote) ? merge(loadBase(), before, remote, { renamed: sent, preferRemote: !hasBase() }) : { ...before };
       const user = sameAccountUser(merged, before);
       if (user !== undefined) merged[KEYS.user] = user;
       const wall = merged[KEYS.wallpaper];
@@ -212,10 +232,12 @@ async function push() {
       forgetRenames(sent);
       const next = merge(fingerprint(before), now, result.merged, { renamed: renamed() });
       if (!sameData(next, now) && !replaceLocal(next)) {
-        // what did not fit here is not common history: those keys keep the value this device had before
-        const held = localData();
-        for (const key of Object.keys(next)) {
-          if (key === KEYS.user || held[key] === next[key]) continue;
+        // what did not fit here is not common history: those keys keep the value this device had before (the list
+        // and its progress together, as they are written)
+        const here = localData();
+        const landed = (key) => (VACANCY_KEYS.includes(key) ? VACANCY_KEYS.every((k) => here[k] === next[k]) : here[key] === next[key]);
+        for (const key of new Set([...Object.keys(next), ...VACANCY_KEYS])) {
+          if (key === KEYS.user || landed(key)) continue;
           if (before[key] === undefined) delete shared[key]; else shared[key] = before[key];
         }
         saveBase(shared);
@@ -303,7 +325,7 @@ function firstSync(remote, version) {
   }
   setRaw(KEYS.owner, uid);
   remove(KEYS.joining);
-  const held = localData(); // before the stash comes back: what of it did not fit must not count as common history
+  const here = localData(); // before the stash comes back: what of it did not fit must not count as common history
   stored = takeBackStash() && stored;
   if (stored) {
     // An empty cloud copy is a new account: an empty base, so what any device adds from now on counts as an
@@ -313,7 +335,7 @@ function firstSync(remote, version) {
     // A full storage refused part of it, and what did not fit is not common history: a merge keeps its old base, a
     // guest's join gets none, and a device that took the cloud copy shares only what it really holds, so the rest
     // still reads as the cloud's change. Dirty, so it is settled once there is room.
-    if (kind === "guest") remove(KEYS.syncBase); else if (kind === "cloud") saveBase(held);
+    if (kind === "guest") remove(KEYS.syncBase); else if (kind === "cloud") saveBase(here);
     setDirty(true);
   }
   applied = version;
@@ -356,7 +378,12 @@ function takeBackStash() {
   const now = localData();
   const merged = merge(base, kept.data, now);
   setDirty(true);
-  if (!sameData(merged, now) && !replaceLocal(merged)) return false;
+  if (!sameData(merged, now) && !replaceLocal(merged)) {
+    // What did fit is here now and goes up with the next push. The stash keeps the rest only, measured against what
+    // is here, so a later merge cannot bring back what it delivered over newer edits.
+    setJSON(KEYS.stash, { ...stash, [uid]: { data: merged, base: fingerprint(localData()) } });
+    return false;
+  }
   delete stash[uid];
   if (Object.keys(stash).length) setJSON(KEYS.stash, stash); else remove(KEYS.stash);
   return true;
