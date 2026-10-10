@@ -236,7 +236,8 @@ function metaContent(html, key) {
     const close = segment.indexOf(">");
     if (close >= 0) {
       const tag = html.slice(i, i + close + 1);
-      if (attr.test(tag)) return decodeEntities((/content=["']([^"']*)["']/i.exec(tag) || [])[1] || "").trim();
+      // the value ends at the quote that opened it: "комп'ютер" inside double quotes is one word
+      if (attr.test(tag)) { const m = /content=(?:"([^"]*)"|'([^']*)')/i.exec(tag); return decodeEntities((m && (m[1] ?? m[2])) || "").trim(); }
     }
     if (next < 0) break;
     i = next - 1;

@@ -327,3 +327,8 @@ test("metaContent still reads ordinary tags after the linear rewrite", () => {
   assert.equal(metaContent('<meta property="og:title" content="x"', "og:title"), "", "an unterminated tag is ignored");
   assert.equal(metaContent('<meta property="og:title" <b>content="x">', "og:title"), "", "a tag cut by the next < is ignored");
 });
+
+test("metaContent ends a value at the quote that opened it", () => {
+  assert.equal(metaContent(`<meta property="og:title" content="Інженер з комп'ютерних мереж, м'який графік">`, "og:title"), "Інженер з комп'ютерних мереж, м'який графік");
+  assert.equal(metaContent(`<meta name='description' content='She said "hi" to us'>`, "description"), 'She said "hi" to us');
+});
