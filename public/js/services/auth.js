@@ -21,6 +21,10 @@ const genderOf = (u) => (!hasGenderFor(u.uid) && signingUp?.gender) || genderFor
 // how long signing out waits for Firebase when it has not loaded yet
 const SIGN_OUT_WAIT_MS = 5000;
 
+// The account this page belongs to: the letters, chat and AI phrases in memory are that account's. Read from the
+// stored record when the page loads, because signing in writes the new record before Firebase reports it.
+let pageUid = currentUser()?.uid || "";
+
 function onAuthChange(u) {
   if (u && getRaw(KEYS.signedOut) === u.uid) {
     // signed out here while Firebase could not be reached: its session ends now instead of coming back
@@ -31,6 +35,15 @@ function onAuthChange(u) {
   if (u) {
     const local = currentUser();
     if (!local || local.uid !== u.uid) setUser({ name: nameOf(u), email: u.email || "", gender: genderOf(u), uid: u.uid });
+    if (pageUid && pageUid !== u.uid) {
+      // Another account signed in on this page (the sign-in dialog also opens for a signed-in user whose session
+      // ended): like a sign-out, a reload drops the previous account's letters and chat. Its data on the device is
+      // the sync's business on the next page (put aside, never uploaded into this account).
+      stopSync();
+      location.reload();
+      return;
+    }
+    pageUid = u.uid;
     startSync(u.uid);
   } else {
     stopSync();

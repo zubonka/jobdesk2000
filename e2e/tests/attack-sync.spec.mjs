@@ -494,6 +494,28 @@ test("signing out with an unsynced edit keeps it on the device and signing back 
   await expect.poll(async () => progressIn(await cloudData(uid))["Saved Co|Designer"]?.status, { timeout: 20_000 }).toBe("Оффер");
 });
 
+test("another account signing in from the sign-in dialog of a signed-in page starts a fresh page for it", async ({ page }, testInfo) => {
+  const emailA = freshEmail(testInfo, "synca"), emailB = freshEmail(testInfo, "syncb");
+  await seedStorage(page, { jobdesk2000_welcomed: "1" });
+  await openApp(page);
+  await register(page, { name: "Богдана", email: emailB, gender: "f" });
+  await signOut(page);
+  await register(page, { name: "Андрій", email: emailA, gender: "m" });
+  await addByHand(page, "Secret role", "A Secret Co");
+  await waitSynced(page);
+  await page.evaluate(() => { window.__samePage = true; });
+
+  // the dialog a 401 opens while signed in (messenger.js); the person signs in there as someone else
+  await page.evaluate(() => window.jobdesk.emit("auth:open", "login"));
+  await page.locator("#auth-email").fill(emailB);
+  await page.locator("#auth-pass").fill(PASSWORD);
+  await Promise.all([page.waitForEvent("load"), page.locator("#auth-pass").press("Enter")]);
+  await expect(page.locator("#acc-label")).toHaveText("Богдана");
+  expect(await page.evaluate(() => window.__samePage), "the page was loaded afresh").toBeUndefined();
+  await waitSynced(page);
+  expect(await localCompanies(page)).toEqual([]);
+});
+
 /* ----- two tabs of one account ----- */
 
 test("signing out in one tab while another tab is open leaves none of the account's data on the device", async ({ context }, testInfo) => {
