@@ -264,9 +264,11 @@ label.fl{font-size:.875rem; color:var(--dim); display:block; margin-bottom:.25re
 .filters select{max-width:100%; min-width:0;}
 .empty{text-align:center; padding:1.25rem; line-height:1.45;}
 .gh{font-size:1rem; color:var(--accent-ink); margin:.875rem 0 .5rem; letter-spacing:.0625rem;}
-.jobcard{position:relative; border:.125rem solid var(--field-br); border-radius:.625rem; padding:.6875rem; margin-bottom:.625rem; background:var(--field);
-  /* cards out of sight are not laid out: hundreds of vacancies with long notes stay quick */
-  content-visibility:auto; contain-intrinsic-size:auto 14rem;}
+.jobcard{position:relative; border:.125rem solid var(--field-br); border-radius:.625rem; padding:.6875rem; margin-bottom:.625rem; background:var(--field);}
+/* Cards out of sight are not laid out, so hundreds of vacancies with long notes stay quick. The first screen of the
+   board is always drawn: WebKit (Safari) decides what is in sight a moment after the window opens, and until then
+   it would show these cards empty. */
+#board > .jobcard:nth-child(n+9){content-visibility:auto; contain-intrinsic-size:auto 14rem;}
 .jobcard .jhead{display:flex; justify-content:space-between; align-items:center; gap:.375rem;}
 .jobcard .jtools{display:flex; gap:.5rem; align-items:center;}
 .jobcard .jt{font-size:1.0625rem; color:var(--ink); line-height:1.2;}
