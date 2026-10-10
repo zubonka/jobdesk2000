@@ -72,6 +72,8 @@ async function seedSignedIn(page, { extreme = false, ...extra } = {}) {
   const { jobs, progress } = bigBoard(extreme);
   await seedStorage(page, {
     jobdesk2000_welcomed: "1",
+    // the follow-up nudge has been said today: like the deadlines, it must not bring the fairy over a check
+    jd2000_followup: new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Kyiv" }).format(new Date()),
     jobdesk2000_user_v1: { name: USER_30, email: "elizabeth.zubenko.designer2026@example.com", gender: "f", uid: "layout-attack" },
     jobdesk2000_fairy_v1: { name: FAIRY_24, current: "type1", type1: {}, type2: {} },
     jobdesk2000_cv_v1: CV,
