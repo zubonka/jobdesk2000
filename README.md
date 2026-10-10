@@ -252,7 +252,9 @@ formats are shared with the original single-file app and with existing cloud cop
   data never uploads it; that account's changes that never reached its cloud copy are put aside on the device
   (`jd2000_stash`) and merged back when it signs in there again. Signing out removes the account's data from the device only when the cloud has all of
   it; signing out while Firebase cannot be reached ends the session on the next load (`jd2000_signed_out`).
-- `tests/web/jobs.test.mjs` pins these formats against the original app.
+- `tests/web/jobs.test.mjs` pins these formats against the original app. `tests/web/sync.test.mjs` replays the
+  sync between simulated devices and tabs over a fake Firestore (`fake-firebase.mjs`, loaded through
+  `sync-hooks.mjs`), delivering snapshots in exactly the orders that once lost data.
 
 ## Where the texts live
 
