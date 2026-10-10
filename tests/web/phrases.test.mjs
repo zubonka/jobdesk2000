@@ -32,3 +32,18 @@ test("the result is the SPECIALTIES entry with its phrases", () => {
   assert.equal(found, SPECIALTIES.find((s) => s.key === "design"));
   assert.ok(found.phr.length > 0);
 });
+
+test("keywords count only at the start of a word, and short ones only as whole words", () => {
+  for (const text of [
+    "Accountant. Built monthly reports quickly as required, guidance for juniors, equipment audits",
+    "Кухарка: продукти харчування, продуктивна зміна",
+    "Юрист: Цивільний кодекс, Податковий кодекс",
+    "Касир у супермаркеті, штрих-коди товарів",
+    "Логіст, обробка рекламацій",
+  ]) assert.equal(keyOf(text), null, text);
+  assert.equal(keyOf("UI/UX designer"), "design");
+  assert.equal(keyOf("UX researcher"), "design");
+  assert.equal(keyOf("Розробниця на Java"), "dev");
+  assert.equal(keyOf("Маркетологиня, таргетована реклама"), "marketing");
+  assert.equal(keyOf("Продакт-менеджер у стартапі"), "pm");
+});
