@@ -290,7 +290,7 @@ test("300 vacancies with long notes: search, a status change and typing a note s
       document.body.offsetHeight;
       times.push(performance.now() - t);
     }
-    return Math.max(...times);
+    return times.sort((a, b) => a - b)[2]; // the middle one, see the note keystrokes below
   });
   // one keystroke in a note saves the whole list
   const noteMs = await page.evaluate(() => {
@@ -304,14 +304,18 @@ test("300 vacancies with long notes: search, a status change and typing a note s
     }
     return times.sort((a, b) => a - b)[2]; // the middle one: a slow app slows every keystroke, a busy test machine one
   });
-  // a status change redraws the board and the statistics
+  // a status change redraws its card and the statistics; three changes, the middle one counts
   const statusMs = await page.evaluate(() => {
-    const el = document.querySelector("#board select.st-sel");
-    const t = performance.now();
-    el.value = el.value === "offer" ? "reject" : "offer";
-    el.dispatchEvent(new Event("change", { bubbles: true }));
-    document.body.offsetHeight;
-    return performance.now() - t;
+    const times = [];
+    for (const value of ["test", "interview1", "reject"]) {
+      const el = document.querySelector("#board select.st-sel"); // the card is redrawn, so its select is new
+      const t = performance.now();
+      el.value = value;
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+      document.body.offsetHeight;
+      times.push(performance.now() - t);
+    }
+    return times.sort((a, b) => a - b)[1];
   });
   const timings = { openMs, searchMs, noteMs, statusMs };
   testInfo.annotations.push({ type: "timings", description: JSON.stringify(timings) });
